@@ -1,0 +1,30 @@
+/* CampusPath design tokens — CIT-U maroon & gold, Poppins, white 16px-radius cards.
+   Shared by every screen on phones and computers (see ui.css). */
+:root {
+    --maroon: #800020;
+    --maroon-dark: #600018;
+    --maroon-soft: #fff1f2;
+    --gold: #fec412;
+    --gold-dark: #e0a800;
+    --ink: #1a1a2e;
+    --label: #374151;
+    --muted: #6b7280;
+    --faint: #9ca3af;
+    --line: #e8eaed;
+    --bg: #f8f9fa;
+    --card: #ffffff;
+    --radius: 16px;
+    --radius-sm: 12px;
+    --tabbar-h: 64px;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-top: env(safe-area-inset-top, 0px);
+    --panel-w: 420px;                    /* side panel width on computers */
+    --shadow-card: 0 18px 40px -16px rgba(15, 23, 42, 0.28);
+
+    /* Category colours (chip background / text) */
+    --building-bg: #fef9c3;   --building-fg: #854d0e;
+    --classroom-bg: #ede9fe;  --classroom-fg: #5b21b6;
+    --department-bg: #fce7f3; --department-fg: #9d174d;
+    --facility-bg: #d1fae5;   --facility-fg: #065f46;
+    --office-bg: #dbeafe;     --office-fg: #1e40af;
+}

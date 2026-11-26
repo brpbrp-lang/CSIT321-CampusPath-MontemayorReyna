@@ -363,7 +363,9 @@ window.CampusMap = (() => {
             const typeLower = (loc.type || 'Building').toLowerCase();
             if (activeCategory !== 'ALL') {
                 if (activeCategory === 'BUILDING' && !typeLower.includes('building')) return;
-                if (activeCategory === 'CLASSROOM' && !typeLower.includes('classroom')) return;
+                // Classrooms live inside buildings, so this shows the buildings that have rooms
+                if (activeCategory === 'CLASSROOM' && !typeLower.includes('classroom')
+                    && !(typeLower.includes('building') && state.rooms.some(r => roomNodeKey(r) === nodeKeyOf(loc)))) return;
                 if (activeCategory === 'DEPARTMENT' && !typeLower.includes('office') && !typeLower.includes('department')) return;
                 if (activeCategory === 'FACILITY' && !typeLower.includes('facility')) return;
             }

@@ -2,435 +2,150 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CampusPath | CIT-U Interactive Campus Wayfinding</title>
-    <script>
-        // Phones and small tablets get the mobile app (mobile.html).
-        // "?desktop=1" (from the mobile Profile screen) keeps this full-screen map view instead.
-        (function () {
-            var params = new URLSearchParams(location.search);
-            if (params.has('desktop')) { localStorage.setItem('cp_prefer_desktop', '1'); return; }
-            if (params.has('mobile')) localStorage.removeItem('cp_prefer_desktop');
-            var small = matchMedia('(max-width: 767px), (pointer: coarse) and (max-width: 1024px)').matches;
-            if ((small || params.has('mobile')) && !localStorage.getItem('cp_prefer_desktop')) {
-                location.replace('mobile.html' + location.hash);
-            }
-        })();
-    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#800020">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>CampusPath | CIT-U Campus Navigation</title>
+    <meta name="description" content="Find buildings, classrooms and offices around CIT-U and get walking directions.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/ui.css">
 </head>
 <body>
-    <!-- Full-Bleed 2.5D Interactive Campus Map Canvas -->
-    <div id="mapViewport" class="map-viewport" aria-label="Interactive CIT-U Campus Map">
-        <svg id="campusSvg" class="campus-svg" viewBox="0 0 1400 950" preserveAspectRatio="xMidYMid slice">
-            <defs>
-                <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
-                    <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#0f172a" flood-opacity="0.14"/>
-                </filter>
-                <filter id="pinShadow" x="-40%" y="-40%" width="180%" height="180%">
-                    <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.28"/>
-                </filter>
-                <linearGradient id="groundGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#e8eef5"/>
-                    <stop offset="50%" stop-color="#eef3f8"/>
-                    <stop offset="100%" stop-color="#e2e9f0"/>
-                </linearGradient>
-                <linearGradient id="maroonRoof" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#991b1b"/>
-                    <stop offset="100%" stop-color="#800000"/>
-                </linearGradient>
-                <linearGradient id="goldAccent" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#fcd34d"/>
-                    <stop offset="100%" stop-color="#f5b800"/>
-                </linearGradient>
-                <pattern id="gridPattern" width="40" height="40" patternUnits="userSpaceOnUse">
-                    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#cbd5e1" stroke-width="0.6" stroke-opacity="0.45"/>
-                </pattern>
-            </defs>
-
-            <g id="mapWorld">
-                <!-- Base Campus Ground -->
-                <rect x="-400" y="-400" width="2200" height="1750" fill="url(#groundGrad)"/>
-                <rect x="-400" y="-400" width="2200" height="1750" fill="url(#gridPattern)"/>
-
-                <!-- CIT-U campus grounds, traced from the official Campus Directory sign (north is up) -->
-                <g id="campusRoads" pointer-events="none">
-                    <!-- Campus grounds (first polygon: the mobile view frames the map on it) -->
-                    <polygon points="292,30 735,30 735,112 1000,112 1000,280 1110,280 1110,908 292,908" fill="#dde3ea" stroke="#94a3b8" stroke-width="2.5" stroke-linejoin="round"/>
-                    <!-- River along the west side -->
-                    <path d="M 270 20 C 262 220, 284 420, 272 620 S 266 860, 280 940" fill="none" stroke="#93c5fd" stroke-width="20" stroke-linecap="round" opacity="0.85"/>
-                    <!-- Inner quadrangle (courts, pavilion, open grounds) -->
-                    <rect x="505" y="178" width="400" height="392" rx="18" fill="#e9edf2"/>
-                    <!-- Green spaces -->
-                    <rect x="292" y="250" width="8" height="620" fill="#bbe5c8"/>
-                    <rect x="660" y="352" width="30" height="86" rx="10" fill="#cdebd6"/>
-                    <rect x="1035" y="440" width="70" height="320" rx="14" fill="#cdebd6"/>
-                    <rect x="868" y="400" width="36" height="160" rx="10" fill="#cdebd6"/>
-                    <!-- N. Bacalso Avenue (main entrance) -->
-                    <path d="M 240 930 L 1160 930" stroke="#cbd5e1" stroke-width="30" stroke-linecap="round"/>
-                    <text x="700" y="934" text-anchor="middle" class="road-label">N. BACALSO AVENUE</text>
-                    <text x="1065" y="918" text-anchor="middle" class="road-label" style="font-size:8px;letter-spacing:0.08em">MAIN GATE</text>
-                </g>
-
-                <!-- Covered walkways (drawn by map.js from the walkway network used for directions) -->
-                <g id="walkwayLayer" pointer-events="none"></g>
-
-                <!-- Trees & campus landscaping -->
-                <g id="campusTrees" pointer-events="none">
-                    <circle cx="672" cy="372" r="9" fill="#4ade80" opacity="0.8"/>
-                    <circle cx="678" cy="415" r="8" fill="#22c55e" opacity="0.8"/>
-                    <circle cx="1060" cy="470" r="11" fill="#4ade80" opacity="0.8"/>
-                    <circle cx="1080" cy="540" r="9" fill="#22c55e" opacity="0.8"/>
-                    <circle cx="1058" cy="620" r="11" fill="#4ade80" opacity="0.8"/>
-                    <circle cx="1082" cy="700" r="9" fill="#22c55e" opacity="0.8"/>
-                    <circle cx="884" cy="430" r="8" fill="#4ade80" opacity="0.8"/>
-                    <circle cx="886" cy="520" r="8" fill="#22c55e" opacity="0.8"/>
-                    <circle cx="296" cy="300" r="7" fill="#22c55e" opacity="0.7"/>
-                    <circle cx="296" cy="520" r="7" fill="#4ade80" opacity="0.7"/>
-                    <circle cx="296" cy="760" r="7" fill="#22c55e" opacity="0.7"/>
-                </g>
-
-                <!-- 2.5D Isometric Building Footprints (rendered & enhanced by map.js) -->
-                <g id="buildingsLayer"></g>
-
-                <!-- Active Building Floor Plan Overlay (when inspecting 1F/2F/3F) -->
-                <g id="floorPlanLayer"></g>
-
-                <!-- Route Guidance Polyline Layer -->
-                <g id="routeLayer"></g>
-
-                <!-- Color-Coded Location Pins Layer -->
-                <g id="pinsLayer"></g>
-            </g>
-        </svg>
-
-        <!-- Compass Rose -->
-        <div class="compass-badge" title="Campus Orientation (North Up)">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="#800000" stroke-width="1.5" fill="rgba(248,250,252,0.9)"/>
-                <polygon points="12,4 15,12 12,10 9,12" fill="#800000"/>
-                <polygon points="12,20 15,12 12,14 9,12" fill="#94a3b8"/>
-            </svg>
-            <span>N</span>
+    <!-- Splash (shown briefly on launch) -->
+    <div id="splash" class="splash" aria-hidden="true">
+        <div>
+            <div class="brand-mark" data-icon="map"></div>
+            <h1>CampusPath</h1>
+            <p>Find Your Way Around CIT-U</p>
         </div>
     </div>
 
-    <!-- TOP-LEFT FLOATING OMNI-SEARCH & ACTION BAR -->
-    <aside class="floating-top-left">
-        <div class="brand-search-card glass-panel">
-            <div class="brand-row">
-                <div class="brand-identity">
-                    <span class="brand-crest">CP</span>
-                    <div>
-                        <h1 class="brand-title">CampusPath</h1>
-                        <p class="brand-subtitle">CIT-U • CCS Dept. of Information Technology</p>
-                    </div>
-                </div>
-                <div class="quick-nav-actions">
-                    <button id="toggleDirectionsBtn" class="icon-pill-btn" title="Campus Directions">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                            <polygon points="3 11 22 2 13 21 11 13 3 11"/>
-                        </svg>
-                        <span>Directions</span>
-                    </button>
-                    <button id="openReportNavBtn" class="icon-pill-btn" title="Report Outdated Info">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
-                            <line x1="4" y1="22" x2="4" y2="15"/>
-                        </svg>
-                        <span>Report</span>
-                    </button>
-                    <button id="openAdminBtn" class="icon-pill-btn admin-only hidden" title="Administrator Dashboard">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-                            <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-                        </svg>
-                        <span>Admin</span>
-                    </button>
-                </div>
-            </div>
+    <div id="app">
+        <div id="offlineBar" class="offline-bar" hidden>
+            <span id="offlineText">Can't reach the CampusPath server.</span><button type="button" id="retryBtn">Retry</button>
+        </div>
 
-            <!-- Omni-Search Input Pill -->
-            <div class="search-pill">
-                <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        <!-- Each screen is rendered here by js/app.js (hash routes like #/home, #/map).
+             Phones: full-screen pages. Computers: a side panel over the map. -->
+        <main id="screen" aria-live="polite"></main>
+
+        <nav id="tabbar" class="tabbar" aria-label="Main">
+            <a class="tab" href="#/home" data-tab="home"><span data-icon="home"></span>Home</a>
+            <a class="tab" href="#/map" data-tab="map"><span data-icon="map"></span>Map</a>
+            <a class="tab" href="#/search" data-tab="search"><span data-icon="search"></span>Search</a>
+            <a class="tab" href="#/profile" data-tab="profile"><span data-icon="user"></span>Profile</a>
+        </nav>
+    </div>
+
+    <!-- Computers: the campus map fills the window behind the side panel -->
+    <div id="mapStage"></div>
+
+    <!-- The campus map, drawn once. js/app.js places it: in the background on computers,
+         inside the Map / Details / Directions pages on phones. Buildings, walkways and pins are added by js/map.js. -->
+    <div id="mapParking" hidden>
+        <div id="mapViewport">
+                <svg id="campusSvg" class="campus-svg" viewBox="0 0 1400 950" preserveAspectRatio="xMinYMin meet" role="img" aria-label="CIT-U campus map">
+                    <defs>
+                        <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+                            <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#0f172a" flood-opacity="0.14"/>
+                        </filter>
+                        <filter id="pinShadow" x="-40%" y="-40%" width="180%" height="180%">
+                            <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.28"/>
+                        </filter>
+                        <linearGradient id="groundGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#e8eef5"/>
+                            <stop offset="50%" stop-color="#eef3f8"/>
+                            <stop offset="100%" stop-color="#e2e9f0"/>
+                        </linearGradient>
+                        <linearGradient id="maroonRoof" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#991b1b"/>
+                            <stop offset="100%" stop-color="#800000"/>
+                        </linearGradient>
+                        <linearGradient id="goldAccent" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#fcd34d"/>
+                            <stop offset="100%" stop-color="#f5b800"/>
+                        </linearGradient>
+                        <pattern id="gridPattern" width="40" height="40" patternUnits="userSpaceOnUse">
+                            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#cbd5e1" stroke-width="0.6" stroke-opacity="0.45"/>
+                        </pattern>
+                    </defs>
+
+                    <g id="mapWorld">
+                        <!-- Base Campus Ground -->
+                        <rect x="-400" y="-400" width="2200" height="1750" fill="url(#groundGrad)"/>
+                        <rect x="-400" y="-400" width="2200" height="1750" fill="url(#gridPattern)"/>
+
+                        <!-- CIT-U campus grounds, traced from the official Campus Directory sign (north is up) -->
+                        <g id="campusRoads" pointer-events="none">
+                            <!-- Campus grounds (first polygon: the mobile view frames the map on it) -->
+                            <polygon points="292,30 735,30 735,112 1000,112 1000,280 1110,280 1110,908 292,908" fill="#dde3ea" stroke="#94a3b8" stroke-width="2.5" stroke-linejoin="round"/>
+                            <!-- River along the west side -->
+                            <path d="M 270 20 C 262 220, 284 420, 272 620 S 266 860, 280 940" fill="none" stroke="#93c5fd" stroke-width="20" stroke-linecap="round" opacity="0.85"/>
+                            <!-- Inner quadrangle (courts, pavilion, open grounds) -->
+                            <rect x="505" y="178" width="400" height="392" rx="18" fill="#e9edf2"/>
+                            <!-- Green spaces -->
+                            <rect x="292" y="250" width="8" height="620" fill="#bbe5c8"/>
+                            <rect x="660" y="352" width="30" height="86" rx="10" fill="#cdebd6"/>
+                            <rect x="1035" y="440" width="70" height="320" rx="14" fill="#cdebd6"/>
+                            <rect x="868" y="400" width="36" height="160" rx="10" fill="#cdebd6"/>
+                            <!-- N. Bacalso Avenue (main entrance) -->
+                            <path d="M 240 930 L 1160 930" stroke="#cbd5e1" stroke-width="30" stroke-linecap="round"/>
+                            <text x="700" y="934" text-anchor="middle" class="road-label">N. BACALSO AVENUE</text>
+                            <text x="1065" y="918" text-anchor="middle" class="road-label" style="font-size:8px;letter-spacing:0.08em">MAIN GATE</text>
+                        </g>
+
+                        <!-- Covered walkways (drawn by map.js from the walkway network used for directions) -->
+                        <g id="walkwayLayer" pointer-events="none"></g>
+
+                        <!-- Trees & campus landscaping -->
+                        <g id="campusTrees" pointer-events="none">
+                            <circle cx="672" cy="372" r="9" fill="#4ade80" opacity="0.8"/>
+                            <circle cx="678" cy="415" r="8" fill="#22c55e" opacity="0.8"/>
+                            <circle cx="1060" cy="470" r="11" fill="#4ade80" opacity="0.8"/>
+                            <circle cx="1080" cy="540" r="9" fill="#22c55e" opacity="0.8"/>
+                            <circle cx="1058" cy="620" r="11" fill="#4ade80" opacity="0.8"/>
+                            <circle cx="1082" cy="700" r="9" fill="#22c55e" opacity="0.8"/>
+                            <circle cx="884" cy="430" r="8" fill="#4ade80" opacity="0.8"/>
+                            <circle cx="886" cy="520" r="8" fill="#22c55e" opacity="0.8"/>
+                            <circle cx="296" cy="300" r="7" fill="#22c55e" opacity="0.7"/>
+                            <circle cx="296" cy="520" r="7" fill="#4ade80" opacity="0.7"/>
+                            <circle cx="296" cy="760" r="7" fill="#22c55e" opacity="0.7"/>
+                        </g>
+
+                        <!-- 2.5D Isometric Building Footprints (rendered & enhanced by map.js) -->
+                        <g id="buildingsLayer"></g>
+
+                        <!-- Active Building Floor Plan Overlay (when inspecting 1F/2F/3F) -->
+                        <g id="floorPlanLayer"></g>
+
+                        <!-- Route Guidance Polyline Layer -->
+                        <g id="routeLayer"></g>
+
+                        <!-- Color-Coded Location Pins Layer -->
+                        <g id="pinsLayer"></g>
+                    </g>
                 </svg>
-                <input
-                    type="text"
-                    id="omniSearchInput"
-                    placeholder="Search room 203, NGE Building, CCS, Wildcat Lab..."
-                    autocomplete="off"
-                    aria-label="Search campus locations"
-                >
-                <button id="clearSearchBtn" class="clear-btn hidden" title="Clear search">&times;</button>
-                <button id="searchSubmitBtn" class="search-go-btn">Search</button>
+            <div id="floorSwitcher" class="floor-switcher hidden" aria-label="Floor">
+                <div class="floor-building-tag" id="floorBuildingLabel">NGE</div>
+                <button class="floor-btn" data-floor="4">4F</button>
+                <button class="floor-btn" data-floor="3">3F</button>
+                <button class="floor-btn" data-floor="2">2F</button>
+                <button class="floor-btn active" data-floor="1">1F</button>
             </div>
-
-            <!-- Instant Category Filter Chips -->
-            <div class="filter-chips" role="tablist" aria-label="Location categories">
-                <button class="chip active" data-category="ALL">All</button>
-                <button class="chip" data-category="BUILDING">Buildings</button>
-                <button class="chip" data-category="CLASSROOM">Classrooms</button>
-                <button class="chip" data-category="DEPARTMENT">Departments</button>
-                <button class="chip" data-category="FACILITY">Facilities</button>
-            </div>
-        </div>
-
-        <!-- Search Results / Empty State Dropdown -->
-        <div id="searchResultsPanel" class="search-results-panel glass-panel hidden"></div>
-
-        <!-- Route Guidance Overlay Card (MazeMap-inspired) -->
-        <div id="routePanel" class="route-panel glass-panel hidden">
-            <div class="panel-header">
-                <div>
-                    <span class="eyebrow">Campus Navigation</span>
-                    <h2>Route Guidance</h2>
-                </div>
-                <button id="closeRouteBtn" class="close-icon-btn" aria-label="Close route guidance">&times;</button>
-            </div>
-
-            <div class="route-inputs">
-                <div class="route-field">
-                    <span class="dot origin-dot"></span>
-                    <select id="startLocationSelect" aria-label="Starting Point">
-                        <option value="">Select Starting Point...</option>
-                    </select>
-                </div>
-                <button id="swapRouteBtn" class="swap-btn" title="Swap origin and destination">⇅</button>
-                <div class="route-field">
-                    <span class="dot dest-dot"></span>
-                    <select id="destinationSelect" aria-label="Destination">
-                        <option value="">Select Destination...</option>
-                    </select>
-                </div>
-            </div>
-
-            <div id="routeValidationBanner" class="validation-banner hidden"></div>
-
-            <div class="route-actions">
-                <button id="getDirectionsBtn" class="primary-btn full-width">Get Directions</button>
-            </div>
-
-            <div id="routeGuidanceResult" class="route-guidance-result hidden"></div>
-        </div>
-    </aside>
-
-    <!-- TOP-RIGHT AUTHENTICATION & ROLE-AWARE ACCOUNT PILL -->
-    <header class="floating-top-right">
-        <div id="authLoggedOutPill" class="account-pill glass-panel">
-            <span class="guest-dot"></span>
-            <span class="account-status-text">Visitor Mode</span>
-            <button id="openLoginModalBtn" class="pill-cta-btn">Sign In</button>
-        </div>
-
-        <div id="authLoggedInPill" class="account-pill glass-panel hidden">
-            <div id="userAvatar" class="user-avatar">U</div>
-            <div class="user-meta">
-                <span id="userNameLabel" class="user-name">User</span>
-                <span id="userRoleBadge" class="role-badge">STUDENT</span>
-            </div>
-            <button id="logoutBtn" class="pill-ghost-btn">Logout</button>
-        </div>
-    </header>
-
-    <!-- SIDE-DOCKED VERTICAL FLOOR SWITCHER (1F, 2F, 3F) -->
-    <div id="floorSwitcher" class="floor-switcher glass-panel hidden" aria-label="Building Floor Switcher">
-        <div class="floor-building-tag" id="floorBuildingLabel">NGE</div>
-        <button class="floor-btn" data-floor="4">4F</button>
-        <button class="floor-btn" data-floor="3">3F</button>
-        <button class="floor-btn" data-floor="2">2F</button>
-        <button class="floor-btn active" data-floor="1">1F</button>
-    </div>
-
-    <!-- BOTTOM-RIGHT MAP CONTROLS & PIN LEGEND -->
-    <div class="floating-bottom-right">
-        <div class="legend-pill glass-panel">
-            <span class="legend-item"><i class="pin-dot building"></i>Building</span>
-            <span class="legend-item"><i class="pin-dot office"></i>Office</span>
-            <span class="legend-item"><i class="pin-dot facility"></i>Facility</span>
-            <span class="legend-item"><i class="pin-dot classroom"></i>Classroom</span>
-        </div>
-        <div class="zoom-controls glass-panel">
-            <button id="zoomInBtn" title="Zoom In">+</button>
-            <button id="zoomOutBtn" title="Zoom Out">&minus;</button>
-            <button id="resetViewBtn" title="Reset Campus View">&#8982;</button>
-        </div>
-    </div>
-
-    <!-- SLIDE-OVER LOCATION DETAIL CARD (Mappedin & Concept3D-inspired) -->
-    <section id="detailDrawer" class="detail-drawer glass-panel hidden" aria-label="Location Details">
-        <button id="closeDetailBtn" class="close-icon-btn drawer-close" aria-label="Close location details">&times;</button>
-        <div id="detailContent"></div>
-    </section>
-
-    <!-- LOGIN MODAL -->
-    <div id="loginModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="loginModalTitle">
-        <div class="modal-card glass-panel">
-            <div class="panel-header">
-                <div>
-                    <span class="eyebrow">CIT-U Account</span>
-                    <h2 id="loginModalTitle">Sign in to CampusPath</h2>
-                </div>
-                <button id="closeLoginModalBtn" class="close-icon-btn" aria-label="Close login">&times;</button>
-            </div>
-            <form id="loginForm" class="modal-form">
-                <label class="field-label">
-                    Institutional Email
-                    <input type="email" id="loginEmail" placeholder="e.g. albert.reyna@cit.edu" required>
-                </label>
-                <label class="field-label">
-                    Password
-                    <input type="password" id="loginPassword" placeholder="Enter your password" required>
-                </label>
-                <div id="loginErrorMsg" class="validation-banner hidden"></div>
-                <button type="submit" class="primary-btn full-width">Sign In</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- INFORMATION REPORTING MODAL -->
-    <div id="reportModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="reportModalTitle">
-        <div class="modal-card glass-panel">
-            <div class="panel-header">
-                <div>
-                    <span class="eyebrow">Help Keep CampusPath Accurate</span>
-                    <h2 id="reportModalTitle">Report Outdated Info</h2>
-                </div>
-                <button id="closeReportModalBtn" class="close-icon-btn" aria-label="Close report modal">&times;</button>
-            </div>
-            <form id="reportForm" class="modal-form">
-                <label class="field-label">
-                    Location
-                    <select id="reportLocationSelect" required></select>
-                </label>
-                <label class="field-label">
-                    Issue Type
-                    <select id="reportIssueType" required>
-                        <option value="">Select issue type</option>
-                        <option>Wrong location</option>
-                        <option>Incorrect room information</option>
-                        <option>Missing location</option>
-                        <option>Incorrect department information</option>
-                        <option>Other</option>
-                    </select>
-                </label>
-                <label class="field-label">
-                    Issue Description
-                    <textarea id="reportMessage" rows="4" maxlength="255" placeholder="Describe what is outdated or incorrect (e.g., room reassigned, new office hours, closed entrance)..." required></textarea>
-                </label>
-                <div id="reportFeedbackBanner" class="feedback-banner hidden"></div>
-                <button type="submit" class="primary-btn full-width">Submit Report</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- ADMINISTRATOR DASHBOARD DRAWER (Visible Only to ADMIN Role) -->
-    <div id="adminModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="adminModalTitle">
-        <div class="admin-drawer glass-panel">
-            <div class="panel-header admin-header">
-                <div>
-                    <span class="eyebrow">Administrator Workspace</span>
-                    <h2 id="adminModalTitle">CampusPath Management Console</h2>
-                </div>
-                <button id="closeAdminModalBtn" class="close-icon-btn" aria-label="Close admin console">&times;</button>
-            </div>
-
-            <div class="admin-tabs" role="tablist">
-                <button class="admin-tab active" data-admin-tab="locations">Locations</button>
-                <button class="admin-tab" data-admin-tab="buildingsRooms">Buildings &amp; Floors / Rooms</button>
-                <button class="admin-tab" data-admin-tab="reports">Location Reports Queue</button>
-            </div>
-
-            <div class="admin-body">
-                <!-- TAB 1: LOCATIONS CRUD -->
-                <div id="adminTabLocations" class="admin-tab-pane active">
-                    <form id="adminLocationForm" class="admin-form-grid">
-                        <input type="hidden" id="editLocationId">
-                        <input type="text" id="adminLocName" placeholder="Location Name (e.g., NGE Building)" required>
-                        <select id="adminLocType" required>
-                            <option value="Building">Building</option>
-                            <option value="Office">Office</option>
-                            <option value="Facility">Facility</option>
-                            <option value="Classroom">Classroom</option>
-                        </select>
-                        <select id="adminLocMapKey" aria-label="Building on the map">
-                            <option value="">Not on the map</option>
-                            <!-- filled from the campus map's building list by app.js -->
-                        </select>
-                        <input type="text" id="adminLocDesc" placeholder="Description (what is here, which floor…)" maxlength="255">
-                        <div class="form-btn-group">
-                            <button type="submit" id="saveLocationBtn" class="primary-btn">Add Location</button>
-                            <button type="button" id="cancelEditLocBtn" class="ghost-btn hidden">Cancel</button>
-                        </div>
-                    </form>
-                    <div id="adminLocationsTable" class="admin-table-wrap"></div>
-                </div>
-
-                <!-- TAB 2: BUILDINGS & FLOORS / ROOMS CRUD -->
-                <div id="adminTabBuildingsRooms" class="admin-tab-pane">
-                    <div class="admin-split-grid">
-                        <div class="admin-subcard">
-                            <h3>Buildings</h3>
-                            <form id="adminBuildingForm" class="admin-form-stack">
-                                <input type="hidden" id="editBuildingId">
-                                <input type="text" id="adminBldName" placeholder="Building Name (e.g., NGE Building)" required>
-                                <input type="text" id="adminBldDesc" placeholder="Building Description" required>
-                                <select id="adminBldLocSelect" required></select>
-                                <div class="form-btn-group">
-                                    <button type="submit" id="saveBuildingBtn" class="primary-btn">Add Building</button>
-                                    <button type="button" id="cancelEditBldBtn" class="ghost-btn hidden">Cancel</button>
-                                </div>
-                            </form>
-                            <div id="adminBuildingsTable" class="admin-table-wrap"></div>
-                        </div>
-
-                        <div class="admin-subcard">
-                            <h3>Floors &amp; Rooms</h3>
-                            <form id="adminRoomForm" class="admin-form-stack">
-                                <input type="hidden" id="editRoomId">
-                                <div class="two-col">
-                                    <select id="adminRoomBuildingSelect" required></select>
-                                    <select id="adminRoomDeptSelect" required></select>
-                                </div>
-                                <div class="three-col">
-                                    <input type="text" id="adminRoomNumber" placeholder="Room # (e.g., 203)" required>
-                                    <input type="text" id="adminRoomName" placeholder="Room Name (e.g., IT Lab 2)" required>
-                                    <select id="adminRoomFloor" required>
-                                        <option value="1">1F (Floor 1)</option>
-                                        <option value="2">2F (Floor 2)</option>
-                                        <option value="3">3F (Floor 3)</option>
-                                        <option value="4">4F (Floor 4)</option>
-                                    </select>
-                                </div>
-                                <div class="form-btn-group">
-                                    <button type="submit" id="saveRoomBtn" class="primary-btn">Add Room</button>
-                                    <button type="button" id="cancelEditRoomBtn" class="ghost-btn hidden">Cancel</button>
-                                </div>
-                            </form>
-                            <div id="adminRoomsTable" class="admin-table-wrap"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- TAB 3: LOCATION REPORTS QUEUE -->
-                <div id="adminTabReports" class="admin-tab-pane">
-                    <div class="reports-toolbar">
-                        <span class="toolbar-label">Filter Queue:</span>
-                        <div class="filter-chips">
-                            <button class="chip report-filter active" data-report-status="ALL">All</button>
-                            <button class="chip report-filter" data-report-status="PENDING">Pending</button>
-                            <button class="chip report-filter" data-report-status="REVIEWING">Reviewing</button>
-                            <button class="chip report-filter" data-report-status="RESOLVED">Resolved</button>
-                        </div>
-                    </div>
-                    <div id="adminReportsTable" class="admin-table-wrap"></div>
-                </div>
+            <div class="map-controls">
+                <button id="zoomInBtn" type="button" aria-label="Zoom in">+</button>
+                <button id="zoomOutBtn" type="button" aria-label="Zoom out">&minus;</button>
+                <button id="fitCampusBtn" type="button" aria-label="Show whole campus">&#8982;</button>
             </div>
         </div>
     </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     <script src="js/map.js"></script>
     <script src="js/app.js"></script>

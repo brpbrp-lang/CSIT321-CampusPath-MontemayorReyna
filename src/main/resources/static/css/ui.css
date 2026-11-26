@@ -1,32 +1,8 @@
-/* CampusPath mobile view — styled after the team's Figma Make prototype
-   (Poppins, CIT-U maroon + gold, white cards on a light grey background). */
+/* CampusPath UI — one stylesheet for phones and computers.
+   Phones (default): full-screen pages, bottom sheets, 4-tab bar.
+   Computers (min-width 900px, at the end of this file): the same pages in a side panel over a full-screen map.
+   Colours and sizes come from tokens.css. */
 
-:root {
-    --maroon: #800020;
-    --maroon-dark: #600018;
-    --maroon-soft: #fff1f2;
-    --gold: #fec412;
-    --gold-dark: #e0a800;
-    --ink: #1a1a2e;
-    --label: #374151;
-    --muted: #6b7280;
-    --faint: #9ca3af;
-    --line: #e8eaed;
-    --bg: #f8f9fa;
-    --card: #ffffff;
-    --radius: 14px;
-    --radius-sm: 12px;
-    --tabbar-h: 64px;
-    --safe-bottom: env(safe-area-inset-bottom, 0px);
-    --safe-top: env(safe-area-inset-top, 0px);
-
-    /* Category colours (chip background / text) */
-    --building-bg: #fef9c3;   --building-fg: #854d0e;
-    --classroom-bg: #ede9fe;  --classroom-fg: #5b21b6;
-    --department-bg: #fce7f3; --department-fg: #9d174d;
-    --facility-bg: #d1fae5;   --facility-fg: #065f46;
-    --office-bg: #dbeafe;     --office-fg: #1e40af;
-}
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
@@ -608,3 +584,75 @@ a { color: inherit; text-decoration: none; }
 }
 .topbar { backdrop-filter: saturate(1.4) blur(8px); background: rgba(255, 255, 255, 0.92); }
 :focus-visible { outline: 2px solid var(--maroon); outline-offset: 2px; }
+
+/* ---------- Extra form & admin pieces ---------- */
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+a.stat-tile { display: block; }
+a.stat-tile:active { transform: scale(0.98); }
+#mapStage { display: none; }
+
+/* =====================================================================
+   Computers: side panel + full-screen map (same pages, same features)
+   ===================================================================== */
+@media (min-width: 900px) {
+    html, body { height: 100%; overflow: hidden; background: #e8eef5; }
+    #app { max-width: none; min-height: 0; background: transparent; position: static; }
+
+    /* the campus map fills the window behind everything */
+    #mapStage { display: block; position: fixed; inset: 0; z-index: 0; background: #eef3f8; }
+    .map-host, .welcome-art { display: none !important; }
+    .floor-switcher { top: 16px; right: 16px; }
+    .map-controls { right: 16px; bottom: 16px; }
+
+    /* tab bar becomes a floating nav above the panel */
+    .tabbar {
+        top: 16px; bottom: auto; left: 16px; transform: none;
+        width: var(--panel-w); max-width: none; height: 60px; padding: 0 6px;
+        border: 1px solid var(--line); border-radius: var(--radius);
+        box-shadow: var(--shadow-card); z-index: 50;
+    }
+    .tab { flex-direction: row; gap: 8px; font-size: 13px; border-radius: 12px; margin: 8px 2px; }
+    .tab.active { background: var(--maroon-soft); }
+    .tab svg { width: 19px; height: 19px; }
+
+    /* every page lives in the side panel */
+    #screen, #screen.no-tabbar {
+        position: fixed; z-index: 20; left: 16px; top: 88px; bottom: 16px;
+        width: var(--panel-w); min-height: 0; padding-bottom: 24px;
+        overflow-y: auto; overscroll-behavior: contain;
+        background: var(--bg); border: 1px solid var(--line); border-radius: 18px;
+        box-shadow: var(--shadow-card);
+    }
+    #app.tabbar-hidden #screen { top: 16px; }
+    #screen.full-bleed { background: transparent; border: 0; box-shadow: none; overflow: visible; pointer-events: none; padding: 0; }
+    #screen.full-bleed > * { pointer-events: auto; }
+
+    .page { padding-top: 16px; }
+    .topbar { border-radius: 18px 18px 0 0; padding-top: 14px; }
+    .hero, .login-hero { border-radius: 17px 17px 24px 24px; padding-top: 24px; }
+    .login-hero { border-radius: 17px 17px 0 0; }
+    .admin-head { padding-top: 18px; }
+    .welcome, .success { min-height: 0; padding: 28px 24px; background: transparent; }
+    .welcome h1 { margin-top: 8px; }
+    .success { padding-top: 48px; }
+    .fab-bar { position: sticky; left: auto; bottom: -24px; transform: none; width: auto; max-width: none; padding: 16px 20px 20px; }
+
+    /* map page: search + filters float where the panel would be */
+    .map-top { top: 88px; left: 16px; transform: none; width: var(--panel-w); max-width: none; padding: 0; }
+    .map-top .pills.scroll { flex-wrap: wrap; }
+
+    /* cards over the map are centred in the area right of the panel */
+    .sheet, .nav-banner, .nav-panel, .toast {
+        left: calc(var(--panel-w) + 32px + (100vw - var(--panel-w) - 32px) / 2);
+    }
+    .sheet { bottom: 24px; width: 440px; }
+    .nav-banner { top: 16px; width: 480px; }
+    .nav-panel { bottom: 16px; width: 480px; border-radius: 22px; padding-bottom: 18px; }
+    .toast { bottom: 24px; }
+    .offline-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 70; }
+
+    @media (hover: hover) {
+        .tab:hover:not(.active) { background: #f3f4f6; color: var(--label); }
+        .btn:hover { filter: brightness(0.97); }
+    }
+}
