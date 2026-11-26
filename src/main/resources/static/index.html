@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CampusPath | CIT-U Interactive Campus Wayfinding</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- Full-Bleed 2.5D Interactive Campus Map Canvas -->
+    <div id="mapViewport" class="map-viewport" aria-label="Interactive CIT-U Campus Map">
+        <svg id="campusSvg" class="campus-svg" viewBox="0 0 1400 950" preserveAspectRatio="xMidYMid slice">
+            <defs>
+                <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#0f172a" flood-opacity="0.14"/>
+                </filter>
+                <filter id="pinShadow" x="-40%" y="-40%" width="180%" height="180%">
+                    <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.28"/>
+                </filter>
+                <linearGradient id="groundGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#e8eef5"/>
+                    <stop offset="50%" stop-color="#eef3f8"/>
+                    <stop offset="100%" stop-color="#e2e9f0"/>
+                </linearGradient>
+                <linearGradient id="maroonRoof" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#991b1b"/>
+                    <stop offset="100%" stop-color="#800000"/>
+                </linearGradient>
+                <linearGradient id="goldAccent" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#fcd34d"/>
+                    <stop offset="100%" stop-color="#f5b800"/>
+                </linearGradient>
+                <pattern id="gridPattern" width="40" height="40" patternUnits="userSpaceOnUse">
+                    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#cbd5e1" stroke-width="0.6" stroke-opacity="0.45"/>
+                </pattern>
+            </defs>
+
+            <g id="mapWorld">
+                <!-- Base Campus Ground -->
+                <rect x="-400" y="-400" width="2200" height="1750" fill="url(#groundGrad)"/>
+                <rect x="-400" y="-400" width="2200" height="1750" fill="url(#gridPattern)"/>
+
+                <!-- CIT-U Vicinity Map Perimeter & Roadway -->
+                <g id="campusRoads" pointer-events="none">
+                    <!-- Campus Ground Polygon (matching CIT-U Vicinity Map) -->
+                    <polygon points="430,75 880,235 790,565 730,840 245,765 345,165" fill="#d8dee6" stroke="#94a3b8" stroke-width="3"/>
+
+                    <!-- Main Internal Campus Road (East-to-North curve) -->
+                    <path d="M 730 815 L 745 550 L 795 275 L 620 185 L 515 125" fill="none" stroke="#334155" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M 730 815 L 745 550 L 795 275 L 620 185 L 515 125" fill="none" stroke="#f8fafc" stroke-width="1.5" stroke-dasharray="10 8"/>
+
+                    <!-- Secondary Walkways -->
+                    <path d="M 745 550 L 470 515 L 430 680" fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M 735 700 L 660 800" fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round"/>
+                    <path d="M 470 515 L 495 245" fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round"/>
+
+                    <!-- N. Bacalso Ave / South Entrance -->
+                    <path d="M 220 885 L 1120 885" stroke="#cbd5e1" stroke-width="34" stroke-linecap="round"/>
+                    <text x="670" y="890" text-anchor="middle" class="road-label">N. BACALSO AVENUE — CIT-U MAIN ENTRANCE</text>
+                </g>
+
+                <!-- Trees & Campus Landscaping -->
+                <g id="campusTrees" pointer-events="none">
+                    <circle cx="515" cy="390" r="14" fill="#4ade80" opacity="0.85"/>
+                    <circle cx="520" cy="386" r="10" fill="#22c55e" opacity="0.85"/>
+                    <circle cx="885" cy="395" r="15" fill="#4ade80" opacity="0.85"/>
+                    <circle cx="890" cy="391" r="10" fill="#22c55e" opacity="0.85"/>
+                    <circle cx="620" cy="660" r="14" fill="#4ade80" opacity="0.85"/>
+                    <circle cx="780" cy="660" r="14" fill="#4ade80" opacity="0.85"/>
+                    <circle cx="310" cy="360" r="13" fill="#4ade80" opacity="0.85"/>
+                    <circle cx="1090" cy="370" r="14" fill="#4ade80" opacity="0.85"/>
+                </g>
+
+                <!-- 2.5D Isometric Building Footprints (rendered & enhanced by map.js) -->
+                <g id="buildingsLayer"></g>
+
+                <!-- Active Building Floor Plan Overlay (when inspecting 1F/2F/3F) -->
+                <g id="floorPlanLayer"></g>
+
+                <!-- Route Guidance Polyline Layer -->
+                <g id="routeLayer"></g>
+
+                <!-- Color-Coded Location Pins Layer -->
+                <g id="pinsLayer"></g>
+            </g>
+        </svg>
+
+        <!-- Compass Rose -->
+        <div class="compass-badge" title="Campus Orientation (North Up)">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="#800000" stroke-width="1.5" fill="rgba(248,250,252,0.9)"/>
+                <polygon points="12,4 15,12 12,10 9,12" fill="#800000"/>
+                <polygon points="12,20 15,12 12,14 9,12" fill="#94a3b8"/>
+            </svg>
+            <span>N</span>
+        </div>
+    </div>
+
+    <!-- TOP-LEFT FLOATING OMNI-SEARCH & ACTION BAR -->
+    <aside class="floating-top-left">
+        <div class="brand-search-card glass-panel">
+            <div class="brand-row">
+                <div class="brand-identity">
+                    <span class="brand-crest">CP</span>
+                    <div>
+                        <h1 class="brand-title">CampusPath</h1>
+                        <p class="brand-subtitle">CIT-U • CCS Dept. of Information Technology</p>
+                    </div>
+                </div>
+                <div class="quick-nav-actions">
+                    <button id="toggleDirectionsBtn" class="icon-pill-btn" title="Campus Directions">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                            <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+                        </svg>
+                        <span>Directions</span>
+                    </button>
+                    <button id="openReportNavBtn" class="icon-pill-btn" title="Report Outdated Info">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
+                            <line x1="4" y1="22" x2="4" y2="15"/>
+                        </svg>
+                        <span>Report</span>
+                    </button>
+                    <button id="openAdminBtn" class="icon-pill-btn admin-only hidden" title="Administrator Dashboard">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                            <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+                        </svg>
+                        <span>Admin</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Omni-Search Input Pill -->
+            <div class="search-pill">
+                <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input
+                    type="text"
+                    id="omniSearchInput"
+                    placeholder="Search room 203, NGE Building, CCS, Wildcat Lab..."
+                    autocomplete="off"
+                    aria-label="Search campus locations"
+                >
+                <button id="clearSearchBtn" class="clear-btn hidden" title="Clear search">&times;</button>
+                <button id="searchSubmitBtn" class="search-go-btn">Search</button>
+            </div>
+
+            <!-- Instant Category Filter Chips -->
+            <div class="filter-chips" role="tablist" aria-label="Location categories">
+                <button class="chip active" data-category="ALL">All</button>
+                <button class="chip" data-category="BUILDING">Buildings</button>
+                <button class="chip" data-category="CLASSROOM">Classrooms</button>
+                <button class="chip" data-category="DEPARTMENT">Departments</button>
+                <button class="chip" data-category="FACILITY">Facilities</button>
+            </div>
+        </div>
+
+        <!-- Search Results / Empty State Dropdown -->
+        <div id="searchResultsPanel" class="search-results-panel glass-panel hidden"></div>
+
+        <!-- Route Guidance Overlay Card (MazeMap-inspired) -->
+        <div id="routePanel" class="route-panel glass-panel hidden">
+            <div class="panel-header">
+                <div>
+                    <span class="eyebrow">Campus Navigation</span>
+                    <h2>Route Guidance</h2>
+                </div>
+                <button id="closeRouteBtn" class="close-icon-btn" aria-label="Close route guidance">&times;</button>
+            </div>
+
+            <div class="route-inputs">
+                <div class="route-field">
+                    <span class="dot origin-dot"></span>
+                    <select id="startLocationSelect" aria-label="Starting Point">
+                        <option value="">Select Starting Point...</option>
+                    </select>
+                </div>
+                <button id="swapRouteBtn" class="swap-btn" title="Swap origin and destination">⇅</button>
+                <div class="route-field">
+                    <span class="dot dest-dot"></span>
+                    <select id="destinationSelect" aria-label="Destination">
+                        <option value="">Select Destination...</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="routeValidationBanner" class="validation-banner hidden"></div>
+
+            <div class="route-actions">
+                <button id="getDirectionsBtn" class="primary-btn full-width">Get Directions</button>
+            </div>
+
+            <div id="routeGuidanceResult" class="route-guidance-result hidden"></div>
+        </div>
+    </aside>
+
+    <!-- TOP-RIGHT AUTHENTICATION & ROLE-AWARE ACCOUNT PILL -->
+    <header class="floating-top-right">
+        <div id="authLoggedOutPill" class="account-pill glass-panel">
+            <span class="guest-dot"></span>
+            <span class="account-status-text">Visitor Mode</span>
+            <button id="openLoginModalBtn" class="pill-cta-btn">Sign In</button>
+        </div>
+
+        <div id="authLoggedInPill" class="account-pill glass-panel hidden">
+            <div id="userAvatar" class="user-avatar">U</div>
+            <div class="user-meta">
+                <span id="userNameLabel" class="user-name">User</span>
+                <span id="userRoleBadge" class="role-badge">STUDENT</span>
+            </div>
+            <button id="logoutBtn" class="pill-ghost-btn">Logout</button>
+        </div>
+    </header>
+
+    <!-- SIDE-DOCKED VERTICAL FLOOR SWITCHER (1F, 2F, 3F) -->
+    <div id="floorSwitcher" class="floor-switcher glass-panel hidden" aria-label="Building Floor Switcher">
+        <div class="floor-building-tag" id="floorBuildingLabel">NGE</div>
+        <button class="floor-btn" data-floor="4">4F</button>
+        <button class="floor-btn" data-floor="3">3F</button>
+        <button class="floor-btn" data-floor="2">2F</button>
+        <button class="floor-btn active" data-floor="1">1F</button>
+    </div>
+
+    <!-- BOTTOM-RIGHT MAP CONTROLS & PIN LEGEND -->
+    <div class="floating-bottom-right">
+        <div class="legend-pill glass-panel">
+            <span class="legend-item"><i class="pin-dot building"></i>Building</span>
+            <span class="legend-item"><i class="pin-dot office"></i>Office</span>
+            <span class="legend-item"><i class="pin-dot facility"></i>Facility</span>
+            <span class="legend-item"><i class="pin-dot classroom"></i>Classroom</span>
+        </div>
+        <div class="zoom-controls glass-panel">
+            <button id="zoomInBtn" title="Zoom In">+</button>
+            <button id="zoomOutBtn" title="Zoom Out">&minus;</button>
+            <button id="resetViewBtn" title="Reset Campus View">&#8982;</button>
+        </div>
+    </div>
+
+    <!-- SLIDE-OVER LOCATION DETAIL CARD (Mappedin & Concept3D-inspired) -->
+    <section id="detailDrawer" class="detail-drawer glass-panel hidden" aria-label="Location Details">
+        <button id="closeDetailBtn" class="close-icon-btn drawer-close" aria-label="Close location details">&times;</button>
+        <div id="detailContent"></div>
+    </section>
+
+    <!-- LOGIN MODAL -->
+    <div id="loginModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="loginModalTitle">
+        <div class="modal-card glass-panel">
+            <div class="panel-header">
+                <div>
+                    <span class="eyebrow">CIT-U Account</span>
+                    <h2 id="loginModalTitle">Sign in to CampusPath</h2>
+                </div>
+                <button id="closeLoginModalBtn" class="close-icon-btn" aria-label="Close login">&times;</button>
+            </div>
+            <form id="loginForm" class="modal-form">
+                <label class="field-label">
+                    Institutional Email
+                    <input type="email" id="loginEmail" placeholder="e.g. albert.reyna@cit.edu" required>
+                </label>
+                <label class="field-label">
+                    Password
+                    <input type="password" id="loginPassword" placeholder="Enter your password" required>
+                </label>
+                <div id="loginErrorMsg" class="validation-banner hidden"></div>
+                <button type="submit" class="primary-btn full-width">Sign In</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- INFORMATION REPORTING MODAL -->
+    <div id="reportModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="reportModalTitle">
+        <div class="modal-card glass-panel">
+            <div class="panel-header">
+                <div>
+                    <span class="eyebrow">Help Keep CampusPath Accurate</span>
+                    <h2 id="reportModalTitle">Report Outdated Info</h2>
+                </div>
+                <button id="closeReportModalBtn" class="close-icon-btn" aria-label="Close report modal">&times;</button>
+            </div>
+            <form id="reportForm" class="modal-form">
+                <label class="field-label">
+                    Location
+                    <select id="reportLocationSelect" required></select>
+                </label>
+                <label class="field-label">
+                    Issue Description
+                    <textarea id="reportMessage" rows="4" placeholder="Describe what is outdated or incorrect (e.g., room reassigned, new office hours, closed entrance)..." required></textarea>
+                </label>
+                <div id="reportFeedbackBanner" class="feedback-banner hidden"></div>
+                <button type="submit" class="primary-btn full-width">Submit Report</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ADMINISTRATOR DASHBOARD DRAWER (Visible Only to ADMIN Role) -->
+    <div id="adminModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="adminModalTitle">
+        <div class="admin-drawer glass-panel">
+            <div class="panel-header admin-header">
+                <div>
+                    <span class="eyebrow">Administrator Workspace</span>
+                    <h2 id="adminModalTitle">CampusPath Management Console</h2>
+                </div>
+                <button id="closeAdminModalBtn" class="close-icon-btn" aria-label="Close admin console">&times;</button>
+            </div>
+
+            <div class="admin-tabs" role="tablist">
+                <button class="admin-tab active" data-admin-tab="locations">Locations</button>
+                <button class="admin-tab" data-admin-tab="buildingsRooms">Buildings &amp; Floors / Rooms</button>
+                <button class="admin-tab" data-admin-tab="reports">Location Reports Queue</button>
+            </div>
+
+            <div class="admin-body">
+                <!-- TAB 1: LOCATIONS CRUD -->
+                <div id="adminTabLocations" class="admin-tab-pane active">
+                    <form id="adminLocationForm" class="admin-form-grid">
+                        <input type="hidden" id="editLocationId">
+                        <input type="text" id="adminLocName" placeholder="Location Name (e.g., NGE Building)" required>
+                        <select id="adminLocType" required>
+                            <option value="Building">Building</option>
+                            <option value="Office">Office</option>
+                            <option value="Facility">Facility</option>
+                            <option value="Classroom">Classroom</option>
+                        </select>
+                        <input type="text" id="adminLocDesc" placeholder="Description / Coordinates / Notes" required>
+                        <div class="form-btn-group">
+                            <button type="submit" id="saveLocationBtn" class="primary-btn">Add Location</button>
+                            <button type="button" id="cancelEditLocBtn" class="ghost-btn hidden">Cancel</button>
+                        </div>
+                    </form>
+                    <div id="adminLocationsTable" class="admin-table-wrap"></div>
+                </div>
+
+                <!-- TAB 2: BUILDINGS & FLOORS / ROOMS CRUD -->
+                <div id="adminTabBuildingsRooms" class="admin-tab-pane">
+                    <div class="admin-split-grid">
+                        <div class="admin-subcard">
+                            <h3>Buildings</h3>
+                            <form id="adminBuildingForm" class="admin-form-stack">
+                                <input type="hidden" id="editBuildingId">
+                                <input type="text" id="adminBldName" placeholder="Building Name (e.g., NGE Building)" required>
+                                <input type="text" id="adminBldDesc" placeholder="Building Description" required>
+                                <select id="adminBldLocSelect" required></select>
+                                <div class="form-btn-group">
+                                    <button type="submit" id="saveBuildingBtn" class="primary-btn">Add Building</button>
+                                    <button type="button" id="cancelEditBldBtn" class="ghost-btn hidden">Cancel</button>
+                                </div>
+                            </form>
+                            <div id="adminBuildingsTable" class="admin-table-wrap"></div>
+                        </div>
+
+                        <div class="admin-subcard">
+                            <h3>Floors &amp; Rooms</h3>
+                            <form id="adminRoomForm" class="admin-form-stack">
+                                <input type="hidden" id="editRoomId">
+                                <div class="two-col">
+                                    <select id="adminRoomBuildingSelect" required></select>
+                                    <select id="adminRoomDeptSelect" required></select>
+                                </div>
+                                <div class="three-col">
+                                    <input type="text" id="adminRoomNumber" placeholder="Room # (e.g., 203)" required>
+                                    <input type="text" id="adminRoomName" placeholder="Room Name (e.g., IT Lab 2)" required>
+                                    <select id="adminRoomFloor" required>
+                                        <option value="1">1F (Floor 1)</option>
+                                        <option value="2">2F (Floor 2)</option>
+                                        <option value="3">3F (Floor 3)</option>
+                                        <option value="4">4F (Floor 4)</option>
+                                    </select>
+                                </div>
+                                <div class="form-btn-group">
+                                    <button type="submit" id="saveRoomBtn" class="primary-btn">Add Room</button>
+                                    <button type="button" id="cancelEditRoomBtn" class="ghost-btn hidden">Cancel</button>
+                                </div>
+                            </form>
+                            <div id="adminRoomsTable" class="admin-table-wrap"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 3: LOCATION REPORTS QUEUE -->
+                <div id="adminTabReports" class="admin-tab-pane">
+                    <div class="reports-toolbar">
+                        <span class="toolbar-label">Filter Queue:</span>
+                        <div class="filter-chips">
+                            <button class="chip report-filter active" data-report-status="ALL">All</button>
+                            <button class="chip report-filter" data-report-status="PENDING">PENDING</button>
+                            <button class="chip report-filter" data-report-status="RESOLVED">RESOLVED</button>
+                        </div>
+                    </div>
+                    <div id="adminReportsTable" class="admin-table-wrap"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/map.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
