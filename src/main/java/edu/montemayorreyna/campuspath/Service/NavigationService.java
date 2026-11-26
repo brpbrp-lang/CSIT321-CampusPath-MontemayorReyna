@@ -7,15 +7,17 @@ import edu.montemayorreyna.campuspath.Repository.NavigationHistoryRepository;
 import edu.montemayorreyna.campuspath.Repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
+/** Owns directions: validates the two places and keeps each user's trip history. */
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class NavigationService {
 
     private final LocationRepository locationRepository;
@@ -23,38 +25,39 @@ public class NavigationService {
     private final UserRepository userRepository;
 
     // Activity 2: Get Directions workflow
+    @Transactional
     public Map<String, Object> getDirections(Integer userId, Integer startLocationId, Integer destinationId) {
+        NavigationHistory trip = recordTrip(userId, startLocationId, destinationId);
+
         Map<String, Object> response = new LinkedHashMap<>();
-
-        Optional<Location> startOpt = locationRepository.findById(startLocationId);
-        Optional<Location> destOpt = locationRepository.findById(destinationId);
-
-        if (startOpt.isEmpty() || destOpt.isEmpty()) {
-            response.put("valid", false);
-            response.put("message", "Invalid starting point or destination location.");
-            return response;
-        }
-
-        Location start = startOpt.get();
-        Location destination = destOpt.get();
-
-        String routeGuidance = calculateRoute(start, destination);
-
-        NavigationHistory history = new NavigationHistory();
-        if (userId != null) {
-            userRepository.findById(userId).ifPresent(history::setUser);
-        }
-        history.setLocation(start);
-        history.setDestination(destination);
-        history.setRequestDate(LocalDate.now());
-        NavigationHistory savedHistory = navigationHistoryRepository.save(history);
-
         response.put("valid", true);
-        response.put("startLocation", start);
-        response.put("destinationLocation", destination);
-        response.put("directions", routeGuidance);
-        response.put("navigationHistory", savedHistory);
+        response.put("startLocation", trip.getLocation());
+        response.put("destinationLocation", trip.getDestination());
+        response.put("directions", calculateRoute(trip.getLocation(), trip.getDestination()));
+        response.put("navigationHistory", trip);
         return response;
+    }
+
+    /** Validates the trip and, for signed-in users, saves it to their history. */
+    @Transactional
+    public NavigationHistory recordTrip(Integer userId, Integer startLocationId, Integer destinationId) {
+        Location start = locationRepository.findById(startLocationId)
+                .orElseThrow(() -> ApiException.badRequest("Invalid starting point."));
+        Location destination = locationRepository.findById(destinationId)
+                .orElseThrow(() -> ApiException.badRequest("Invalid destination."));
+        if (start.getLocationId().equals(destination.getLocationId())) {
+            throw ApiException.badRequest("The starting point and destination are the same place.");
+        }
+
+        NavigationHistory trip = new NavigationHistory();
+        trip.setLocation(start);
+        trip.setDestination(destination);
+        trip.setRequestDate(LocalDate.now());
+        if (userId == null) {
+            return trip;   // visitors get directions, but nothing is stored
+        }
+        userRepository.findById(userId).ifPresent(trip::setUser);
+        return navigationHistoryRepository.save(trip);
     }
 
     public String calculateRoute(Location start, Location destination) {
@@ -63,6 +66,6 @@ public class NavigationService {
     }
 
     public List<NavigationHistory> getUserNavigationHistory(Integer userId) {
-        return navigationHistoryRepository.findByUser_UserId(userId);
+        return navigationHistoryRepository.findByUser_UserIdOrderByNavigationIdDesc(userId);
     }
 }

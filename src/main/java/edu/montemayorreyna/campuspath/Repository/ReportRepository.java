@@ -8,6 +8,9 @@ import java.util.List;
 
 @Repository
 public interface ReportRepository extends JpaRepository<Report, Integer> {
-    List<Report> findByStatus(String status);
-    List<Report> findByUser_UserId(Integer userId);
+    List<Report> findByStatusOrderByReportIdDesc(String status);
+
+    List<Report> findByUser_UserIdOrderByReportIdDesc(Integer userId);
+
+    long countByStatus(String status);
 }

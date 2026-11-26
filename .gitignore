@@ -31,3 +31,7 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Local secrets (database password etc.) ###
+local.properties
+.claude/

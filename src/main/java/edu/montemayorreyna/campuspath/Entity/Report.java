@@ -27,6 +27,10 @@ public class Report {
     @JoinColumn(name = "location_id", referencedColumnName = "location_id")
     private Location location;
 
+    // e.g. "Wrong location", "Incorrect room information" (see ReportService.ISSUE_TYPES)
+    @Column(name = "issue_type", length = 64)
+    private String issueType;
+
     @Column(name = "message")
     private String message;
 

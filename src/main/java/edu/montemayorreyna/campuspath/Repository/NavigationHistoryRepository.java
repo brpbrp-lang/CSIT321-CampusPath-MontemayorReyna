@@ -8,5 +8,5 @@ import java.util.List;
 
 @Repository
 public interface NavigationHistoryRepository extends JpaRepository<NavigationHistory, Integer> {
-    List<NavigationHistory> findByUser_UserId(Integer userId);
+    List<NavigationHistory> findByUser_UserIdOrderByNavigationIdDesc(Integer userId);
 }

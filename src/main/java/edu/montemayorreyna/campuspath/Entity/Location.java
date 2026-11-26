@@ -25,4 +25,9 @@ public class Location {
 
     @Column(name = "type")
     private String type;
+
+    // Which building on the campus map this location belongs to (e.g. "nge", "rtl", "lrac").
+    // Lets the map place pins and draw routes from data instead of guessing from the name.
+    @Column(name = "map_key", length = 32)
+    private String mapKey;
 }

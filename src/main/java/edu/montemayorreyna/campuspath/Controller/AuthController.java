@@ -2,53 +2,64 @@ package edu.montemayorreyna.campuspath.Controller;
 
 import edu.montemayorreyna.campuspath.Entity.User;
 import edu.montemayorreyna.campuspath.Service.UserService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "*")
+@RequiredArgsConstructor
 public class AuthController {
 
     private final UserService userService;
-
-    public AuthController(UserService userService) {
-        this.userService = userService;
-    }
+    private final SessionAuth sessionAuth;
 
     @PostMapping("/login")
-    public ResponseEntity login(@RequestBody Map<String, String> credentials) {
-        String email = credentials.get("email");
-        String password = credentials.get("password");
+    public ResponseEntity<Map<String, Object>> login(@RequestBody Map<String, String> credentials,
+                                                     HttpServletRequest request) {
+        return userService.authenticateUser(credentials.get("email"), credentials.get("password"))
+                .map(user -> {
+                    // New session id on login (prevents session fixation)
+                    HttpSession old = request.getSession(false);
+                    if (old != null) old.invalidate();
+                    sessionAuth.signIn(request.getSession(true), user);
+                    return ResponseEntity.ok(userInfo(user));
+                })
+                .orElseGet(() -> {
+                    Map<String, Object> body = new LinkedHashMap<>();
+                    body.put("authenticated", false);
+                    body.put("message", "Invalid email or password");
+                    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
+                });
+    }
 
-        Map<String, Object> response = new LinkedHashMap<>();
-        Optional<User> userOpt = userService.authenticateUser(email, password);
-
-        if (userOpt.isPresent()) {
-            User user = userOpt.get();
-            response.put("authenticated", true);
-            response.put("userId", user.getUserId());
-            response.put("name", user.getName());
-            response.put("email", user.getEmail());
-            response.put("role", user.getRole());
-            return ResponseEntity.ok(response);
-        }
-
-        response.put("authenticated", false);
-        response.put("message", "Invalid email or password");
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    /** Who is signed in right now (lets the page stay signed in after a refresh). */
+    @GetMapping("/me")
+    public ResponseEntity<Map<String, Object>> me(HttpSession session) {
+        return ResponseEntity.ok(userInfo(sessionAuth.requireUser(session)));
     }
 
     @PostMapping("/logout")
-    public ResponseEntity logout() {
+    public ResponseEntity<Map<String, String>> logout(HttpServletRequest request) {
         userService.logout();
-        Map<String, String> response = new LinkedHashMap<>();
-        response.put("message", "Logged out successfully");
-        return ResponseEntity.ok(response);
+        HttpSession session = request.getSession(false);
+        if (session != null) session.invalidate();
+        return ResponseEntity.ok(Map.of("message", "Logged out successfully"));
+    }
+
+    private static Map<String, Object> userInfo(User user) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("authenticated", true);
+        body.put("userId", user.getUserId());
+        body.put("name", user.getName());
+        body.put("email", user.getEmail());
+        body.put("role", user.getRole());
+        return body;
     }
 }
