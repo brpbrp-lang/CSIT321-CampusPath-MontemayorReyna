@@ -4,9 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CampusPath | CIT-U Interactive Campus Wayfinding</title>
+    <script>
+        // Phones and small tablets get the mobile app (mobile.html).
+        // "?desktop=1" (from the mobile Profile screen) keeps this full-screen map view instead.
+        (function () {
+            var params = new URLSearchParams(location.search);
+            if (params.has('desktop')) { localStorage.setItem('cp_prefer_desktop', '1'); return; }
+            if (params.has('mobile')) localStorage.removeItem('cp_prefer_desktop');
+            var small = matchMedia('(max-width: 767px), (pointer: coarse) and (max-width: 1024px)').matches;
+            if ((small || params.has('mobile')) && !localStorage.getItem('cp_prefer_desktop')) {
+                location.replace('mobile.html' + location.hash);
+            }
+        })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -43,35 +56,41 @@
                 <rect x="-400" y="-400" width="2200" height="1750" fill="url(#groundGrad)"/>
                 <rect x="-400" y="-400" width="2200" height="1750" fill="url(#gridPattern)"/>
 
-                <!-- CIT-U Vicinity Map Perimeter & Roadway -->
+                <!-- CIT-U campus grounds, traced from the official Campus Directory sign (north is up) -->
                 <g id="campusRoads" pointer-events="none">
-                    <!-- Campus Ground Polygon (matching CIT-U Vicinity Map) -->
-                    <polygon points="430,75 880,235 790,565 730,840 245,765 345,165" fill="#d8dee6" stroke="#94a3b8" stroke-width="3"/>
-
-                    <!-- Main Internal Campus Road (East-to-North curve) -->
-                    <path d="M 730 815 L 745 550 L 795 275 L 620 185 L 515 125" fill="none" stroke="#334155" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M 730 815 L 745 550 L 795 275 L 620 185 L 515 125" fill="none" stroke="#f8fafc" stroke-width="1.5" stroke-dasharray="10 8"/>
-
-                    <!-- Secondary Walkways -->
-                    <path d="M 745 550 L 470 515 L 430 680" fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M 735 700 L 660 800" fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round"/>
-                    <path d="M 470 515 L 495 245" fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round"/>
-
-                    <!-- N. Bacalso Ave / South Entrance -->
-                    <path d="M 220 885 L 1120 885" stroke="#cbd5e1" stroke-width="34" stroke-linecap="round"/>
-                    <text x="670" y="890" text-anchor="middle" class="road-label">N. BACALSO AVENUE — CIT-U MAIN ENTRANCE</text>
+                    <!-- Campus grounds (first polygon: the mobile view frames the map on it) -->
+                    <polygon points="292,30 735,30 735,112 1000,112 1000,280 1110,280 1110,908 292,908" fill="#dde3ea" stroke="#94a3b8" stroke-width="2.5" stroke-linejoin="round"/>
+                    <!-- River along the west side -->
+                    <path d="M 270 20 C 262 220, 284 420, 272 620 S 266 860, 280 940" fill="none" stroke="#93c5fd" stroke-width="20" stroke-linecap="round" opacity="0.85"/>
+                    <!-- Inner quadrangle (courts, pavilion, open grounds) -->
+                    <rect x="505" y="178" width="400" height="392" rx="18" fill="#e9edf2"/>
+                    <!-- Green spaces -->
+                    <rect x="292" y="250" width="8" height="620" fill="#bbe5c8"/>
+                    <rect x="660" y="352" width="30" height="86" rx="10" fill="#cdebd6"/>
+                    <rect x="1035" y="440" width="70" height="320" rx="14" fill="#cdebd6"/>
+                    <rect x="868" y="400" width="36" height="160" rx="10" fill="#cdebd6"/>
+                    <!-- N. Bacalso Avenue (main entrance) -->
+                    <path d="M 240 930 L 1160 930" stroke="#cbd5e1" stroke-width="30" stroke-linecap="round"/>
+                    <text x="700" y="934" text-anchor="middle" class="road-label">N. BACALSO AVENUE</text>
+                    <text x="1065" y="918" text-anchor="middle" class="road-label" style="font-size:8px;letter-spacing:0.08em">MAIN GATE</text>
                 </g>
 
-                <!-- Trees & Campus Landscaping -->
+                <!-- Covered walkways (drawn by map.js from the walkway network used for directions) -->
+                <g id="walkwayLayer" pointer-events="none"></g>
+
+                <!-- Trees & campus landscaping -->
                 <g id="campusTrees" pointer-events="none">
-                    <circle cx="515" cy="390" r="14" fill="#4ade80" opacity="0.85"/>
-                    <circle cx="520" cy="386" r="10" fill="#22c55e" opacity="0.85"/>
-                    <circle cx="885" cy="395" r="15" fill="#4ade80" opacity="0.85"/>
-                    <circle cx="890" cy="391" r="10" fill="#22c55e" opacity="0.85"/>
-                    <circle cx="620" cy="660" r="14" fill="#4ade80" opacity="0.85"/>
-                    <circle cx="780" cy="660" r="14" fill="#4ade80" opacity="0.85"/>
-                    <circle cx="310" cy="360" r="13" fill="#4ade80" opacity="0.85"/>
-                    <circle cx="1090" cy="370" r="14" fill="#4ade80" opacity="0.85"/>
+                    <circle cx="672" cy="372" r="9" fill="#4ade80" opacity="0.8"/>
+                    <circle cx="678" cy="415" r="8" fill="#22c55e" opacity="0.8"/>
+                    <circle cx="1060" cy="470" r="11" fill="#4ade80" opacity="0.8"/>
+                    <circle cx="1080" cy="540" r="9" fill="#22c55e" opacity="0.8"/>
+                    <circle cx="1058" cy="620" r="11" fill="#4ade80" opacity="0.8"/>
+                    <circle cx="1082" cy="700" r="9" fill="#22c55e" opacity="0.8"/>
+                    <circle cx="884" cy="430" r="8" fill="#4ade80" opacity="0.8"/>
+                    <circle cx="886" cy="520" r="8" fill="#22c55e" opacity="0.8"/>
+                    <circle cx="296" cy="300" r="7" fill="#22c55e" opacity="0.7"/>
+                    <circle cx="296" cy="520" r="7" fill="#4ade80" opacity="0.7"/>
+                    <circle cx="296" cy="760" r="7" fill="#22c55e" opacity="0.7"/>
                 </g>
 
                 <!-- 2.5D Isometric Building Footprints (rendered & enhanced by map.js) -->
@@ -288,8 +307,19 @@
                     <select id="reportLocationSelect" required></select>
                 </label>
                 <label class="field-label">
+                    Issue Type
+                    <select id="reportIssueType" required>
+                        <option value="">Select issue type</option>
+                        <option>Wrong location</option>
+                        <option>Incorrect room information</option>
+                        <option>Missing location</option>
+                        <option>Incorrect department information</option>
+                        <option>Other</option>
+                    </select>
+                </label>
+                <label class="field-label">
                     Issue Description
-                    <textarea id="reportMessage" rows="4" placeholder="Describe what is outdated or incorrect (e.g., room reassigned, new office hours, closed entrance)..." required></textarea>
+                    <textarea id="reportMessage" rows="4" maxlength="255" placeholder="Describe what is outdated or incorrect (e.g., room reassigned, new office hours, closed entrance)..." required></textarea>
                 </label>
                 <div id="reportFeedbackBanner" class="feedback-banner hidden"></div>
                 <button type="submit" class="primary-btn full-width">Submit Report</button>
@@ -326,7 +356,11 @@
                             <option value="Facility">Facility</option>
                             <option value="Classroom">Classroom</option>
                         </select>
-                        <input type="text" id="adminLocDesc" placeholder="Description / Coordinates / Notes" required>
+                        <select id="adminLocMapKey" aria-label="Building on the map">
+                            <option value="">Not on the map</option>
+                            <!-- filled from the campus map's building list by app.js -->
+                        </select>
+                        <input type="text" id="adminLocDesc" placeholder="Description (what is here, which floor…)" maxlength="255">
                         <div class="form-btn-group">
                             <button type="submit" id="saveLocationBtn" class="primary-btn">Add Location</button>
                             <button type="button" id="cancelEditLocBtn" class="ghost-btn hidden">Cancel</button>
@@ -387,8 +421,9 @@
                         <span class="toolbar-label">Filter Queue:</span>
                         <div class="filter-chips">
                             <button class="chip report-filter active" data-report-status="ALL">All</button>
-                            <button class="chip report-filter" data-report-status="PENDING">PENDING</button>
-                            <button class="chip report-filter" data-report-status="RESOLVED">RESOLVED</button>
+                            <button class="chip report-filter" data-report-status="PENDING">Pending</button>
+                            <button class="chip report-filter" data-report-status="REVIEWING">Reviewing</button>
+                            <button class="chip report-filter" data-report-status="RESOLVED">Resolved</button>
                         </div>
                     </div>
                     <div id="adminReportsTable" class="admin-table-wrap"></div>

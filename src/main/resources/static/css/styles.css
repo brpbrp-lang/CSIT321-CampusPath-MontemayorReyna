@@ -1,8 +1,8 @@
 :root {
-    --maroon: #800000;
-    --maroon-dark: #5c0000;
+    --maroon: #800020;
+    --maroon-dark: #600018;
     --maroon-soft: rgba(128, 0, 0, 0.1);
-    --gold: #F5B800;
+    --gold: #FEC412;
     --gold-soft: rgba(245, 184, 0, 0.22);
     --surface: rgba(248, 250, 252, 0.9);
     --surface-solid: #F8FAFC;
@@ -17,7 +17,7 @@
     --radius-pill: 9999px;
 
     /* Category Pin Colors */
-    --pin-building: #800000;
+    --pin-building: #800020;
     --pin-office: #0284c7;
     --pin-facility: #059669;
     --pin-classroom: #d97706;
@@ -33,14 +33,14 @@ html, body {
     width: 100%;
     height: 100%;
     overflow: hidden;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     color: var(--text-primary);
     background: #e2e8f0;
     -webkit-font-smoothing: antialiased;
 }
 
 h1, h2, h3, .brand-title {
-    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    font-family: 'Poppins', sans-serif;
 }
 
 .hidden {
@@ -91,7 +91,7 @@ h1, h2, h3, .brand-title {
 }
 
 .building-label {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: 'Poppins', sans-serif;
     font-size: 12px;
     font-weight: 700;
     fill: #0f172a;
@@ -174,7 +174,7 @@ h1, h2, h3, .brand-title {
     color: var(--gold);
     display: grid;
     place-items: center;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: 'Poppins', sans-serif;
     font-weight: 800;
     font-size: 0.95rem;
     border: 2px solid var(--gold);
@@ -300,8 +300,12 @@ h1, h2, h3, .brand-title {
 .filter-chips {
     display: flex;
     gap: 6px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
 }
+.filter-chips::-webkit-scrollbar { display: none; }
+.filter-chips .chip { flex-shrink: 0; }
 
 .chip {
     border: 1px solid var(--border);
@@ -1212,4 +1216,58 @@ h1, h2, h3, .brand-title {
     .three-col {
         grid-template-columns: 1fr;
     }
+}
+
+/* --- Toast: short success / error messages (app.js showToast) --- */
+.app-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translate(-50%, 16px);
+    max-width: min(92vw, 440px);
+    padding: 12px 18px;
+    border-radius: var(--radius-md);
+    background: var(--text-primary);
+    color: #fff;
+    font: 500 14px/1.4 'Inter', sans-serif;
+    box-shadow: var(--shadow-lg);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    z-index: 9999;
+}
+.app-toast.visible {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+.app-toast.error { background: #991b1b; }
+.app-toast.success { background: #166534; }
+
+/* --- Polish added with the backend clean-up --- */
+.muted-cell { color: var(--text-muted); }
+.status-select {
+    font: inherit; font-size: 0.78rem; font-weight: 600;
+    padding: 6px 28px 6px 10px; border-radius: 999px;
+    border: 1px solid var(--border); background-color: #fff; cursor: pointer;
+}
+.status-select.PENDING { background-color: #fef3c7; color: #92400e; border-color: #fde68a; }
+.status-select.REVIEWING { background-color: #dbeafe; color: #1e40af; border-color: #bfdbfe; }
+.status-select.RESOLVED { background-color: #d1fae5; color: #065f46; border-color: #a7f3d0; }
+.status-select:disabled { opacity: 0.6; }
+.detail-rooms { margin: 4px 0 14px; display: grid; gap: 8px; }
+.room-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.room-chip {
+    font: inherit; font-size: 0.74rem; font-weight: 600;
+    padding: 4px 10px; border-radius: 8px;
+    border: 1px solid var(--border); background: #fff; color: var(--maroon); cursor: pointer;
+}
+.room-chip:hover { border-color: var(--maroon); background: var(--maroon-soft); }
+.room-chip.more { color: var(--text-muted); cursor: default; }
+.type-badge.office { background: #dbeafe; color: #1e40af; }
+.type-badge.facility { background: #d1fae5; color: #065f46; }
+.type-badge.department { background: #fce7f3; color: #9d174d; }
+.type-badge.classroom { background: #ede9fe; color: #5b21b6; }
+.type-badge.building { background: #fef9c3; color: #854d0e; }
+button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible {
+    outline: 2px solid var(--maroon); outline-offset: 2px;
 }

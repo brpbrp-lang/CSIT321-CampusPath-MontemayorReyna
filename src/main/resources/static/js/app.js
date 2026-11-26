@@ -63,6 +63,40 @@
         return data;
     }
 
+    // --- Error feedback ---
+    // Shows a short message at the bottom of the screen (kind: 'error' | 'success').
+    function showToast(message, kind = 'error') {
+        let toast = document.getElementById('appToast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'appToast';
+            toast.setAttribute('role', 'status');
+            toast.setAttribute('aria-live', 'polite');
+            document.body.appendChild(toast);
+        }
+        toast.textContent = message;
+        toast.className = `app-toast ${kind} visible`;
+        clearTimeout(showToast.timer);
+        showToast.timer = setTimeout(() => toast.classList.remove('visible'), 4500);
+    }
+
+    // Turns a failed request into a readable message. A 401 means the server session
+    // ended (e.g. the server restarted), so the page signs out and asks to sign in again.
+    function describeError(err, fallback = 'Something went wrong. Please try again.') {
+        if (err?.status === 401) {
+            if (appState.user) clearAuthenticatedUser();
+            document.getElementById('loginModal').classList.remove('hidden');
+            return 'Your session has ended. Please sign in again.';
+        }
+        if (err?.status === 403) return err.message || 'Only administrators can do this.';
+        if (err instanceof TypeError) return 'Cannot reach the CampusPath server. Check that it is running.';
+        return err?.message || fallback;
+    }
+
+    function showError(err, fallback) {
+        showToast(describeError(err, fallback), 'error');
+    }
+
     // --- Initial Data Bootstrap ---
     async function loadCatalog() {
         try {
@@ -86,7 +120,10 @@
         }
 
         populateLocationSelects();
-        window.CampusMap.focusBuilding('nge', 1);
+        window.CampusMap.renderPins(appState.locations, appState.rooms, appState.activeCategory);
+        if (appState.usingFallback) {
+            showToast('Showing sample data: the CampusPath server could not be reached.', 'error');
+        }
     }
 
     function populateLocationSelects() {
@@ -116,6 +153,13 @@
         if (bldLocSel) bldLocSel.innerHTML = locOptions;
         if (rmBldSel) rmBldSel.innerHTML = bldOptions;
         if (rmDeptSel) rmDeptSel.innerHTML = deptOptions;
+
+        // "Building on the map" choices come from the campus map itself (B1, B2, …)
+        const mapSel = document.getElementById('adminLocMapKey');
+        if (mapSel && mapSel.options.length <= 1) {
+            mapSel.insertAdjacentHTML('beforeend', window.CampusMap.listBuildings()
+                .map(b => `<option value="${b.id}">${escapeHtml(b.code)} — ${escapeHtml(b.name)}</option>`).join(''));
+        }
     }
 
     // --- Omni-Search & Category Filter ---
@@ -132,9 +176,10 @@
 
         let data;
         try {
-            const userQ = appState.user ? `&userId=${appState.user.userId}` : '';
-            data = await apiFetch(`/locations/search?keyword=${encodeURIComponent(keyword)}${userQ}`);
+            // The server records search history for the signed-in user from the session
+            data = await apiFetch(`/locations/search?keyword=${encodeURIComponent(keyword)}`);
         } catch {
+            // Read-only: if the server is unreachable, search the data already loaded in the page
             data = localSearch(keyword);
         }
 
@@ -179,9 +224,19 @@
         let html = '';
 
         const rooms = (cat === 'ALL' || cat === 'CLASSROOM') ? (data.rooms || []) : [];
-        const buildings = (cat === 'ALL' || cat === 'BUILDING') ? (data.buildings || []) : [];
         const departments = (cat === 'ALL' || cat === 'DEPARTMENT') ? (data.departments || []) : [];
-        const locations = (data.locations || []).filter(l => {
+        // A building and its map location are the same place: show it once, as the location
+        const matchedPlaces = [...(data.locations || [])];
+        const buildings = [];
+        (data.buildings || []).forEach(b => {
+            const loc = appState.locations.find(l => l.locationId === b.location?.locationId);
+            if (loc) {
+                if (!matchedPlaces.some(l => l.locationId === loc.locationId)) matchedPlaces.push(loc);
+            } else if (cat === 'ALL' || cat === 'BUILDING') {
+                buildings.push(b);
+            }
+        });
+        const locations = matchedPlaces.filter(l => {
             const t = (l.type || '').toLowerCase();
             if (cat === 'ALL') return true;
             if (cat === 'BUILDING') return t.includes('building');
@@ -190,21 +245,6 @@
             if (cat === 'FACILITY') return t.includes('facility');
             return true;
         });
-
-        if (rooms.length) {
-            html += `<div class="result-group-title">Classrooms &amp; Rooms</div>`;
-            rooms.forEach((r, idx) => {
-                html += `
-                    <div class="result-item" data-kind="ROOM" data-idx="${idx}">
-                        <div class="result-main">
-                            <span class="result-title">Room ${escapeHtml(r.roomNumber)} — ${escapeHtml(r.roomName)}</span>
-                            <span class="result-sub">${escapeHtml(r.building?.buildingName || 'Campus')} • Floor ${r.floor}F</span>
-                        </div>
-                        <span class="type-badge classroom">Classroom</span>
-                    </div>
-                `;
-            });
-        }
 
         if (buildings.length) {
             html += `<div class="result-group-title">Buildings</div>`;
@@ -222,7 +262,7 @@
         }
 
         if (locations.length) {
-            html += `<div class="result-group-title">Locations &amp; Facilities</div>`;
+            html += `<div class="result-group-title">Places</div>`;
             locations.forEach((l, idx) => {
                 const badgeCls = (l.type || 'building').toLowerCase();
                 html += `
@@ -247,6 +287,21 @@
                             <span class="result-sub">${escapeHtml(d.description || '')}</span>
                         </div>
                         <span class="type-badge department">Department</span>
+                    </div>
+                `;
+            });
+        }
+
+        if (rooms.length) {
+            html += `<div class="result-group-title">Classrooms &amp; Rooms</div>`;
+            rooms.forEach((r, idx) => {
+                html += `
+                    <div class="result-item" data-kind="ROOM" data-idx="${idx}">
+                        <div class="result-main">
+                            <span class="result-title">${escapeHtml(r.roomName || 'Room ' + r.roomNumber)}</span>
+                            <span class="result-sub">${escapeHtml(r.building?.buildingName || 'Campus')} • ${escapeHtml(floorLabel(r.floor))}</span>
+                        </div>
+                        <span class="type-badge classroom">Classroom</span>
                     </div>
                 `;
             });
@@ -292,110 +347,110 @@
     }
 
     // --- Location Detail Card ---
+    function floorLabel(n) {
+        const f = Number(n);
+        if (!f) return '—';
+        const suffix = f === 1 ? 'st' : f === 2 ? 'nd' : f === 3 ? 'rd' : 'th';
+        return `${f}${suffix} Floor`;
+    }
+
+    function floorRange(rooms) {
+        const floors = [...new Set(rooms.map(r => Number(r.floor)).filter(Boolean))].sort((a, b) => a - b);
+        if (!floors.length) return null;
+        return floors.length === 1 ? floorLabel(floors[0]) : `${floorLabel(floors[0]).replace(' Floor', '')} – ${floorLabel(floors[floors.length - 1])}`;
+    }
+
+    // Builds the detail drawer from the real data for each kind of place (no placeholder values)
     function selectItem(item) {
+        if (item._kind === 'BUILDING') {
+            const loc = appState.locations.find(l => l.locationId === item.location?.locationId);
+            if (loc) return selectItem({ ...loc, _kind: 'LOCATION' });
+        }
         appState.selectedItem = item;
         const drawer = document.getElementById('detailDrawer');
         const content = document.getElementById('detailContent');
 
-        let title = '';
-        let badge = 'Location';
-        let badgeCls = 'building';
-        let roomNum = '—';
-        let floorNum = Number(item.floor) || 1;
-        let floorStr = `${floorNum}F`;
-        let buildingName = 'CIT-U Campus';
-        let deptName = 'General Campus';
-        let desc = '';
-        let targetLocationId = item.locationId || item.location?.locationId || null;
-        let nodeKey = item._nodeKey || 'nge';
+        let title = item.name || '';
+        let badge = item.type || 'Location';
+        let rows = [];
+        let desc = item.description || '';
+        let floor = 1;
+        let targetLocationId = item.locationId || null;
+        let nodeKey = item._nodeKey || window.CampusMap.nodeKeyOf(item);
+        let roomList = [];
 
         if (item._kind === 'ROOM') {
+            const bLoc = item.building?.location;
             title = item.roomName || `Room ${item.roomNumber}`;
             badge = 'Classroom';
-            badgeCls = 'classroom';
-            roomNum = item.roomNumber || '—';
-            floorStr = `${floorNum}F`;
-            buildingName = item.building?.buildingName || 'NGE BLDG';
-            deptName = item.department?.departmentName || 'College of Computer Studies';
-            desc = `Located on Floor ${floorNum} of ${buildingName}.`;
-            nodeKey = window.CampusMap.inferNodeKey(buildingName);
-            targetLocationId = findLocationIdByName(buildingName) || targetLocationId;
-        } else if (item._kind === 'BUILDING') {
-            title = item.buildingName;
-            badge = 'Building';
-            badgeCls = 'building';
-            buildingName = item.buildingName;
-            desc = item.description || 'Multi-story CIT-U academic building.';
-            nodeKey = window.CampusMap.inferNodeKey(buildingName);
-            targetLocationId = item.location?.locationId || findLocationIdByName(buildingName);
+            floor = Number(item.floor) || 1;
+            rows = [['Room', item.roomNumber], ['Floor', floorLabel(item.floor)], ['Building', item.building?.buildingName]];
+            if (item.department) rows.push(['Department', item.department.departmentName]);
+            desc = '';
+            targetLocationId = bLoc?.locationId || null;
+            nodeKey = item._nodeKey || window.CampusMap.nodeKeyOf(bLoc);
         } else if (item._kind === 'DEPARTMENT') {
+            roomList = appState.rooms.filter(r => r.department?.departmentId === item.departmentId);
+            const bLoc = roomList[0]?.building?.location;
             title = item.departmentName;
             badge = 'Department';
-            badgeCls = 'department';
-            buildingName = 'NGE BLDG';
-            deptName = item.departmentName;
-            floorNum = 3;
-            floorStr = '3F';
-            desc = item.description || 'Academic department office.';
-            nodeKey = 'nge';
-            targetLocationId = findLocationIdByName('NGE') || appState.locations[0]?.locationId;
+            const bNames = [...new Set(roomList.map(r => r.building?.buildingName).filter(Boolean))];
+            if (bNames.length) rows.push(['Buildings', bNames.join(', ')]);
+            rows.push(['Rooms', String(roomList.length)]);
+            targetLocationId = bLoc?.locationId || null;
+            nodeKey = bLoc ? window.CampusMap.nodeKeyOf(bLoc) : null;
+            floor = Number(roomList[0]?.floor) || 1;
         } else {
-            title = item.name;
-            badge = item.type || 'Location';
-            badgeCls = (item.type || 'building').toLowerCase();
-            desc = item.description || '';
-            // Use explicit _nodeKey if available (from building clicks); only infer as fallback
-            nodeKey = item._nodeKey || window.CampusMap.inferNodeKey(`${item.name} ${item.description}`);
-            buildingName = item.name;
+            const building = item.locationId && appState.buildings.find(b => b.location?.locationId === item.locationId);
+            rows.push(['Type', item.type || 'Location']);
+            if (building) {
+                roomList = appState.rooms.filter(r => r.building?.buildingId === building.buildingId);
+                const range = floorRange(roomList);
+                if (range) rows.push(['Floors', range]);
+                rows.push(['Rooms', String(roomList.length)]);
+                desc = building.description || desc;
+            } else if (item.mapKey) {
+                // e.g. an office inside a building: name the building it is in
+                const host = appState.locations.find(l => l.mapKey === item.mapKey && (l.type || '').toLowerCase() === 'building' && l.locationId !== item.locationId);
+                if (host) rows.push(['Inside', host.name]);
+            }
         }
 
         const pinKey = item.locationId ? `loc-${item.locationId}` : null;
-        window.CampusMap.focusNode(nodeKey, pinKey, floorNum);
+        if (nodeKey) window.CampusMap.focusNode(nodeKey, pinKey, floor);
 
         content.innerHTML = `
             <div class="detail-header">
-                <span class="type-badge ${badgeCls}">${escapeHtml(badge)}</span>
+                <span class="type-badge ${escapeHtml(badge.toLowerCase())}">${escapeHtml(badge)}</span>
                 <h2 class="detail-title">${escapeHtml(title)}</h2>
             </div>
             <div class="detail-meta-grid">
-                <div class="meta-box">
-                    <span class="meta-label">Room Number</span>
-                    <span class="meta-value">${escapeHtml(roomNum)}</span>
-                </div>
-                <div class="meta-box">
-                    <span class="meta-label">Floor Level</span>
-                    <span class="meta-value">${escapeHtml(floorStr)}</span>
-                </div>
-                <div class="meta-box">
-                    <span class="meta-label">Building</span>
-                    <span class="meta-value">${escapeHtml(buildingName)}</span>
-                </div>
-                <div class="meta-box">
-                    <span class="meta-label">Department</span>
-                    <span class="meta-value">${escapeHtml(deptName)}</span>
-                </div>
+                ${rows.filter(([, v]) => v).map(([k, v]) => `
+                    <div class="meta-box">
+                        <span class="meta-label">${escapeHtml(k)}</span>
+                        <span class="meta-value">${escapeHtml(v)}</span>
+                    </div>`).join('')}
             </div>
-            <p class="detail-desc">${escapeHtml(desc)}</p>
+            ${desc ? `<p class="detail-desc">${escapeHtml(desc)}</p>` : ''}
+            ${roomList.length && item._kind !== 'ROOM' ? `
+                <div class="detail-rooms">
+                    <span class="meta-label">Rooms</span>
+                    <div class="room-chips">${roomList.slice(0, 18).map(r => `<button type="button" class="room-chip" data-room-id="${r.roomId}">${escapeHtml(r.roomNumber)}</button>`).join('')}${roomList.length > 18 ? `<span class="room-chip more">+${roomList.length - 18}</span>` : ''}</div>
+                </div>` : ''}
             <div class="detail-actions">
-                <button class="primary-btn" id="detailGetDirectionsBtn">Get Directions</button>
-                <button class="subtle-link-btn" id="detailReportBtn">Report Outdated Info</button>
+                ${targetLocationId ? '<button class="primary-btn" id="detailGetDirectionsBtn">Get Directions</button>' : ''}
+                ${targetLocationId ? '<button class="subtle-link-btn" id="detailReportBtn">Report outdated info</button>' : ''}
             </div>
         `;
 
         drawer.classList.remove('hidden');
 
-        document.getElementById('detailGetDirectionsBtn').addEventListener('click', () => {
-            openRoutePanel(targetLocationId);
-        });
-        document.getElementById('detailReportBtn').addEventListener('click', () => {
-            openReportModal(targetLocationId);
-        });
-    }
-
-    function findLocationIdByName(name = '') {
-        const n = name.toLowerCase();
-        const match = appState.locations.find(l => (l.name || '').toLowerCase().includes(n));
-        return match ? match.locationId : (appState.locations[0]?.locationId || null);
+        content.querySelectorAll('[data-room-id]').forEach(btn => btn.addEventListener('click', () => {
+            const room = appState.rooms.find(r => String(r.roomId) === btn.dataset.roomId);
+            if (room) selectItem({ ...room, _kind: 'ROOM' });
+        }));
+        document.getElementById('detailGetDirectionsBtn')?.addEventListener('click', () => openRoutePanel(targetLocationId));
+        document.getElementById('detailReportBtn')?.addEventListener('click', () => openReportModal(targetLocationId));
     }
 
     // --- Route Guidance ---
@@ -435,16 +490,18 @@
         let destLoc = appState.locations.find(l => String(l.locationId) === String(destId));
 
         try {
-            const userQ = appState.user ? `&userId=${appState.user.userId}` : '';
-            const data = await apiFetch(`/navigation/directions?startLocationId=${startId}&destinationId=${destId}${userQ}`);
-            if (!data.valid) {
-                banner.textContent = data.message || 'Invalid starting point or destination.';
-                banner.classList.remove('hidden');
-                return;
-            }
+            const data = await apiFetch(`/navigation/directions?startLocationId=${startId}&destinationId=${destId}`);
             startLoc = data.startLocation || startLoc;
             destLoc = data.destinationLocation || destLoc;
-        } catch {
+        } catch (err) {
+            // The server answered with an error (e.g. 400 invalid location): show it, don't draw a route
+            if (err.status) {
+                banner.textContent = err.data?.message || err.message || 'Invalid starting point or destination.';
+                banner.classList.remove('hidden');
+                resultBox.classList.add('hidden');
+                return;
+            }
+            // Server unreachable: still draw the route from the locations already loaded in the page
             if (!startLoc || !destLoc) {
                 banner.textContent = 'Unable to resolve selected locations.';
                 banner.classList.remove('hidden');
@@ -453,12 +510,18 @@
         }
 
         const steps = window.CampusMap.drawRoute(startLoc, destLoc);
-        const estMins = Math.max(2, steps.length * 1);
+        // Approximate distance from the route drawn on the map (about 0.5 m per map unit)
+        const pts = (document.querySelector('#routeLayer polyline')?.getAttribute('points') || '')
+            .trim().split(/\s+/).filter(Boolean).map(p => p.split(',').map(Number));
+        let units = 0;
+        for (let i = 1; i < pts.length; i++) units += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+        const meters = Math.round(units * 0.5 / 10) * 10;
+        const estMins = Math.max(1, Math.round(meters / 80));
 
         resultBox.innerHTML = `
             <div class="route-summary-bar">
                 <span>${escapeHtml(startLoc.name)} &rarr; ${escapeHtml(destLoc.name)}</span>
-                <span>~${estMins} min walk</span>
+                <span>${meters ? `~${meters} m • ` : ''}${estMins} min walk</span>
             </div>
             <ol class="route-steps">
                 ${steps.map(s => `<li>${escapeHtml(s)}</li>`).join('')}
@@ -484,38 +547,39 @@
         const feedback = document.getElementById('reportFeedbackBanner');
         const locationId = document.getElementById('reportLocationSelect').value;
         const message = document.getElementById('reportMessage').value.trim();
+        const issueType = document.getElementById('reportIssueType').value;
 
         if (!appState.user) {
             feedback.textContent = 'Please sign in first to submit a location report.';
             feedback.classList.remove('hidden', 'success');
             return;
         }
-        if (!message) return;
+        const missing = !locationId ? 'Please choose a location.' : !issueType ? 'Please choose an issue type.' : !message ? 'Please describe the issue.' : '';
+        if (missing) {
+            feedback.textContent = missing;
+            feedback.classList.remove('hidden', 'success');
+            return;
+        }
 
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
         try {
+            // The server takes the reporter from the signed-in session
             await apiFetch('/reports', {
                 method: 'POST',
-                body: JSON.stringify({
-                    userId: appState.user.userId,
-                    locationId: Number(locationId),
-                    message
-                })
+                body: JSON.stringify({ locationId: Number(locationId), issueType, message })
             });
-        } catch {
-            // Offline fallback
-            const loc = appState.locations.find(l => String(l.locationId) === String(locationId));
-            appState.reports.unshift({
-                reportId: Date.now(),
-                user: appState.user,
-                location: loc,
-                message,
-                reportDate: new Date().toISOString().slice(0, 10),
-                status: 'PENDING'
-            });
+        } catch (err) {
+            feedback.textContent = `Report not submitted: ${describeError(err)}`;
+            feedback.classList.remove('hidden', 'success');
+            return;
+        } finally {
+            submitBtn.disabled = false;
         }
 
         document.getElementById('reportMessage').value = '';
-        feedback.textContent = 'Report submitted! Current status: PENDING review by an administrator.';
+        document.getElementById('reportIssueType').value = '';
+        feedback.textContent = 'Thank you! Your report was sent and is waiting for an administrator to review it.';
         feedback.classList.remove('hidden');
         feedback.classList.add('success');
     }
@@ -558,8 +622,26 @@
         document.getElementById('openAdminBtn').classList.toggle('hidden', role !== 'ADMIN');
     }
 
+    // Restores the signed-in user after a page refresh (the server keeps the session)
+    async function restoreSession() {
+        try {
+            const me = await apiFetch('/auth/me');
+            if (me?.authenticated) setAuthenticatedUser(me);
+        } catch {
+            // 401 = nobody signed in; network error = server offline. Either way: stay in Visitor Mode.
+        }
+    }
+
     async function handleLogout() {
-        try { await apiFetch('/auth/logout', { method: 'POST' }); } catch {}
+        try {
+            await apiFetch('/auth/logout', { method: 'POST' });
+        } catch {
+            // Signing out locally is still correct if the server is unreachable
+        }
+        clearAuthenticatedUser();
+    }
+
+    function clearAuthenticatedUser() {
         appState.user = null;
         document.getElementById('authLoggedOutPill').classList.remove('hidden');
         document.getElementById('authLoggedInPill').classList.add('hidden');
@@ -579,8 +661,8 @@
         try {
             const reports = await apiFetch('/reports');
             appState.reports = reports || [];
-        } catch {
-            // keep existing fallback reports
+        } catch (err) {
+            showError(err, 'Could not load the reports queue.');
         }
         renderAdminLocations();
         renderAdminBuildingsAndRooms();
@@ -591,13 +673,14 @@
         const wrap = document.getElementById('adminLocationsTable');
         wrap.innerHTML = `
             <table class="admin-table">
-                <thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Description</th><th>Actions</th></tr></thead>
+                <thead><tr><th>ID</th><th>Name</th><th>Type</th><th>On map</th><th>Description</th><th>Actions</th></tr></thead>
                 <tbody>
                     ${appState.locations.map(l => `
                         <tr>
                             <td>#${l.locationId}</td>
                             <td><strong>${escapeHtml(l.name)}</strong></td>
                             <td>${escapeHtml(l.type)}</td>
+                            <td>${l.mapKey ? escapeHtml(l.mapKey.toUpperCase()) : '<span class="muted-cell">—</span>'}</td>
                             <td>${escapeHtml(l.description || '')}</td>
                             <td>
                                 <button class="edit-btn" data-edit-loc="${l.locationId}">Edit</button>
@@ -617,6 +700,7 @@
                 document.getElementById('adminLocName').value = loc.name;
                 document.getElementById('adminLocType').value = loc.type || 'Building';
                 document.getElementById('adminLocDesc').value = loc.description || '';
+                document.getElementById('adminLocMapKey').value = loc.mapKey || '';
                 document.getElementById('saveLocationBtn').textContent = 'Save Changes';
                 document.getElementById('cancelEditLocBtn').classList.remove('hidden');
             });
@@ -625,7 +709,14 @@
         wrap.querySelectorAll('[data-del-loc]').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const id = Number(btn.dataset.delLoc);
-                try { await apiFetch(`/locations/${id}`, { method: 'DELETE' }); } catch {}
+                if (!confirm('Delete this location? This cannot be undone.')) return;
+                try {
+                    await apiFetch(`/locations/${id}`, { method: 'DELETE' });
+                    showToast('Location deleted.', 'success');
+                } catch (err) {
+                    showError(err, 'Could not delete this location.');
+                    return;
+                }
                 await refreshAdminTables();
             });
         });
@@ -667,7 +758,14 @@
         bWrap.querySelectorAll('[data-del-bld]').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const id = Number(btn.dataset.delBld);
-                try { await apiFetch(`/locations/buildings/${id}`, { method: 'DELETE' }); } catch {}
+                if (!confirm('Delete this building? This cannot be undone.')) return;
+                try {
+                    await apiFetch(`/locations/buildings/${id}`, { method: 'DELETE' });
+                    showToast('Building deleted.', 'success');
+                } catch (err) {
+                    showError(err, 'Could not delete this building.');
+                    return;
+                }
                 await refreshAdminTables();
             });
         });
@@ -711,7 +809,14 @@
         rWrap.querySelectorAll('[data-del-room]').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const id = Number(btn.dataset.delRoom);
-                try { await apiFetch(`/locations/rooms/${id}`, { method: 'DELETE' }); } catch {}
+                if (!confirm('Delete this room? This cannot be undone.')) return;
+                try {
+                    await apiFetch(`/locations/rooms/${id}`, { method: 'DELETE' });
+                    showToast('Room deleted.', 'success');
+                } catch (err) {
+                    showError(err, 'Could not delete this room.');
+                    return;
+                }
                 await refreshAdminTables();
             });
         });
@@ -728,24 +833,24 @@
             return;
         }
 
+        const label = (st) => st.charAt(0) + st.slice(1).toLowerCase();
         wrap.innerHTML = `
             <table class="admin-table">
-                <thead><tr><th>Location</th><th>Reporter</th><th>Message</th><th>Date</th><th>Status</th><th>Action</th></tr></thead>
+                <thead><tr><th>Issue</th><th>Location</th><th>Reporter</th><th>Details</th><th>Date</th><th>Status</th></tr></thead>
                 <tbody>
                     ${filtered.map(r => {
                         const status = (r.status || 'PENDING').toUpperCase();
-                        const nextStatus = status === 'PENDING' ? 'RESOLVED' : 'PENDING';
                         return `
                             <tr>
-                                <td><strong>${escapeHtml(r.location?.name || 'N/A')}</strong></td>
+                                <td><strong>${escapeHtml(r.issueType || 'Other')}</strong></td>
+                                <td>${escapeHtml(r.location?.name || 'N/A')}</td>
                                 <td>${escapeHtml(r.user?.name || r.user?.email || 'User')}</td>
                                 <td>${escapeHtml(r.message)}</td>
                                 <td>${escapeHtml(r.reportDate || '')}</td>
-                                <td><span class="status-badge ${status}">${status}</span></td>
                                 <td>
-                                    <button class="edit-btn" data-toggle-report="${r.reportId}" data-next-status="${nextStatus}">
-                                        ${status === 'PENDING' ? 'Mark Resolved' : 'Reopen'}
-                                    </button>
+                                    <select class="status-select ${status}" data-report-id="${r.reportId}" aria-label="Report status">
+                                        ${['PENDING', 'REVIEWING', 'RESOLVED'].map(st => `<option value="${st}" ${st === status ? 'selected' : ''}>${label(st)}</option>`).join('')}
+                                    </select>
                                 </td>
                             </tr>
                         `;
@@ -754,18 +859,18 @@
             </table>
         `;
 
-        wrap.querySelectorAll('[data-toggle-report]').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const reportId = Number(btn.dataset.toggleReport);
-                const status = btn.dataset.nextStatus;
+        wrap.querySelectorAll('[data-report-id]').forEach(sel => {
+            sel.addEventListener('change', async () => {
+                sel.disabled = true;
                 try {
-                    await apiFetch(`/reports/${reportId}/status`, {
+                    // The server records which admin handled it from the session
+                    await apiFetch(`/reports/${sel.dataset.reportId}/status`, {
                         method: 'PUT',
-                        body: JSON.stringify({ status, adminUserId: appState.user?.userId || null })
+                        body: JSON.stringify({ status: sel.value })
                     });
-                } catch {
-                    const rep = appState.reports.find(r => r.reportId === reportId);
-                    if (rep) rep.status = status;
+                    showToast(`Report marked ${sel.value.toLowerCase()}.`, 'success');
+                } catch (err) {
+                    showError(err, 'Could not update this report.');
                 }
                 await refreshAdminTables();
             });
@@ -796,6 +901,7 @@
                 document.querySelectorAll('.filter-chips .chip[data-category]').forEach(c => c.classList.remove('active'));
                 chip.classList.add('active');
                 appState.activeCategory = chip.dataset.category;
+                window.CampusMap.renderPins(appState.locations, appState.rooms, appState.activeCategory);
                 if (document.getElementById('omniSearchInput').value.trim()) runSearch();
             });
         });
@@ -904,12 +1010,18 @@
             const payload = {
                 name: document.getElementById('adminLocName').value.trim(),
                 type: document.getElementById('adminLocType').value,
-                description: document.getElementById('adminLocDesc').value.trim()
+                description: document.getElementById('adminLocDesc').value.trim(),
+                mapKey: document.getElementById('adminLocMapKey').value || null
             };
             try {
                 if (id) await apiFetch(`/locations/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
                 else await apiFetch('/locations', { method: 'POST', body: JSON.stringify(payload) });
-            } catch {}
+                showToast('Saved.', 'success');
+            } catch (err) {
+                // Keep what the admin typed so they can fix it and try again
+                showError(err, 'Could not save this location.');
+                return;
+            }
             document.getElementById('adminLocationForm').reset();
             document.getElementById('editLocationId').value = '';
             document.getElementById('saveLocationBtn').textContent = 'Add Location';
@@ -935,7 +1047,12 @@
             try {
                 if (id) await apiFetch(`/locations/buildings/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
                 else await apiFetch('/locations/buildings', { method: 'POST', body: JSON.stringify(payload) });
-            } catch {}
+                showToast('Saved.', 'success');
+            } catch (err) {
+                // Keep what the admin typed so they can fix it and try again
+                showError(err, 'Could not save this building.');
+                return;
+            }
             document.getElementById('adminBuildingForm').reset();
             document.getElementById('editBuildingId').value = '';
             document.getElementById('saveBuildingBtn').textContent = 'Add Building';
@@ -963,7 +1080,12 @@
             try {
                 if (id) await apiFetch(`/locations/rooms/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
                 else await apiFetch('/locations/rooms', { method: 'POST', body: JSON.stringify(payload) });
-            } catch {}
+                showToast('Saved.', 'success');
+            } catch (err) {
+                // Keep what the admin typed so they can fix it and try again
+                showError(err, 'Could not save this room.');
+                return;
+            }
             document.getElementById('adminRoomForm').reset();
             document.getElementById('editRoomId').value = '';
             document.getElementById('saveRoomBtn').textContent = 'Add Room';
@@ -993,5 +1115,6 @@
         window.CampusMap.init({ onSelectItem: selectItem });
         bindEvents();
         loadCatalog();
+        restoreSession();
     });
 })();
